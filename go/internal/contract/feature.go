@@ -1,6 +1,9 @@
 package contract
 
-import "math"
+import (
+	"encoding/json"
+	"math"
+)
 
 // FeatureVector is the materialised, decision-time snapshot. Every feature that is not
 // StatusClear/StatusFired carries NaN as its value (LightGBM handles NaN natively —
@@ -44,6 +47,37 @@ func (fv *FeatureVector) NotApplicable(id, reason string) {
 
 func (fv *FeatureVector) SetStaleness(id string, seconds float64) {
 	fv.Staleness[id] = seconds
+}
+
+// JSONSafeValues converts Values to a map Go's encoding/json can serialise: NaN (used for
+// every NOT_EVALUATED/NOT_APPLICABLE feature, docs/02 §5.6) becomes JSON null rather than
+// tripping json.Marshal's "unsupported value: NaN" error. Status/Reason already carry the
+// distinction (D5); this only fixes the wire encoding of the sentinel value.
+func (fv *FeatureVector) JSONSafeValues() map[string]any {
+	out := make(map[string]any, len(fv.Values))
+	for k, v := range fv.Values {
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			out[k] = nil
+		} else {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+// MarshalJSON makes json.Marshal(fv) — and anything embedding *FeatureVector, like
+// Decision — safe by construction, instead of relying on every caller to remember
+// JSONSafeValues().
+func (fv *FeatureVector) MarshalJSON() ([]byte, error) {
+	type alias struct {
+		Values    map[string]any     `json:"values"`
+		Status    map[string]Status  `json:"status"`
+		Reason    map[string]string  `json:"reason"`
+		Staleness map[string]float64 `json:"staleness"`
+	}
+	return json.Marshal(alias{
+		Values: fv.JSONSafeValues(), Status: fv.Status, Reason: fv.Reason, Staleness: fv.Staleness,
+	})
 }
 
 // FeatureDef is one entry in the feature registry (docs/02 §4). Machine-read by the

@@ -37,45 +37,48 @@ const (
 	KindControl    DecisionKind = "CONTROL"
 )
 
-// Decision is the full, persisted decision record — the audit chain's payload.
+// Decision is the full, persisted decision record — the audit chain's payload. JSON tags
+// are snake_case throughout: this struct is serialised directly to the console over
+// /v1/decide and /v1/decisions/{id}, so its wire shape IS the API contract.
 type Decision struct {
-	EndToEndID   string
-	DecisionSeq  int
-	Kind         DecisionKind
-	DecidedAtMs  int64
-	AcceptedAtMs int64
+	EndToEndID   string       `json:"end_to_end_id"`
+	DecisionSeq  int          `json:"decision_seq"`
+	Kind         DecisionKind `json:"kind"`
+	DecidedAtMs  int64        `json:"decided_at_ms"`
+	AcceptedAtMs int64        `json:"accepted_at_ms"`
 
-	Action             Action
-	PreAdvisoryAction  Action // what our own data alone concluded, before any advisory (docs/04 §5)
-	RailFired          string
-	ReasonCodes        []string
+	Action            Action   `json:"action"`
+	PreAdvisoryAction Action   `json:"pre_advisory_action"` // what our own data alone concluded, before any advisory (docs/04 §5)
+	RailFired         string   `json:"rail_fired"`
+	ReasonCodes       []string `json:"reason_codes"`
 
-	PModel            *float64 // calibrated probability
-	PPrevalenceAdj    *float64 // after prior correction
-	ExpectedLossMinor *int64
-	ExpectedCostMinor *int64 // includes friction — the real objective (docs/04 §2)
+	PModel            *float64 `json:"p_model"`             // calibrated probability
+	PPrevalenceAdj    *float64 `json:"p_prevalence_adj"`    // after prior correction
+	ExpectedLossMinor *int64   `json:"expected_loss_minor"`
+	ExpectedCostMinor *int64   `json:"expected_cost_minor"` // includes friction — the real objective (docs/04 §2)
 
-	Features          *FeatureVector
-	Findings          []Finding
+	Features      *FeatureVector     `json:"features"`
+	Findings      []Finding          `json:"findings"`
+	Contributions map[string]float64 `json:"contributions"` // exact TreeSHAP / linear signed contributions
 
-	ModelBundleVersion    string
-	PolicyVersion         string
-	RulesVersion          string
-	SignalRegistryVersion string
+	ModelBundleVersion    string `json:"model_bundle_version"`
+	PolicyVersion         string `json:"policy_version"`
+	RulesVersion          string `json:"rules_version"`
+	SignalRegistryVersion string `json:"signal_registry_version"`
 
-	IsControl        bool
-	ActionPropensity float64 // P(this action | policy), for off-policy eval
+	IsControl        bool    `json:"is_control"`
+	ActionPropensity float64 `json:"action_propensity"` // P(this action | policy), for off-policy eval
 
-	Degraded []string
+	Degraded []string `json:"degraded"`
 
-	TotalMs      float64
-	QueueDelayMs float64
-	ServiceMs    float64
+	TotalMs      float64 `json:"total_ms"`
+	QueueDelayMs float64 `json:"queue_delay_ms"`
+	ServiceMs    float64 `json:"service_ms"`
 
 	// audit chain
-	DecisionShard int16
-	ChainSeq      int64
-	PrevHash      []byte
-	Hash          []byte
-	CheckpointID  *int64
+	DecisionShard int16  `json:"decision_shard"`
+	ChainSeq      int64  `json:"chain_seq"`
+	PrevHash      []byte `json:"prev_hash"` // base64 on the wire (Go's default []byte JSON encoding)
+	Hash          []byte `json:"hash"`
+	CheckpointID  *int64 `json:"checkpoint_id"`
 }

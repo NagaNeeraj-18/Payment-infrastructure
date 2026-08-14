@@ -1,0 +1,123 @@
+/* Nazar — Clearing House brand kit. No hex literal outside this file. */
+:root {
+  --canvas: #F6F6F4;
+  --panel: #FFFFFF;
+  --sunken: #EFEFEC;
+  --line: #E2E2DE;
+  --line-strong: #C6C6C0;
+
+  --ink-900: #111310;
+  --ink-700: #3E413C;
+  --ink-500: #6C706A;
+  --ink-300: #A0A49D;
+
+  --paper: #FBFAF7;
+  --paper-sunken: #F3F1EC;
+  --paper-line: #E4E0D6;
+
+  --ultra-600: #16289B;
+  --ultra-500: #1F35B5;
+  --ultra-400: #3D53DA;
+  --ultra-wash: #EAECFB;
+
+  --allow: #17795A;
+  --stepup: #9A6410;
+  --hold: #8A3D14;
+  --block: #A82434;
+
+  --font-mono: "Spline Sans Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-ui: "Switzer", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: "Zodiak", Georgia, serif;
+
+  --r-console: 2px;
+  --r-payer: 12px;
+  --r-chip: 3px;
+  --row: 26px;
+  --row-lg: 32px;
+}
+
+@theme {
+  --color-canvas: var(--canvas);
+  --color-panel: var(--panel);
+  --color-sunken: var(--sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-ink-900: var(--ink-900);
+  --color-ink-700: var(--ink-700);
+  --color-ink-500: var(--ink-500);
+  --color-ink-300: var(--ink-300);
+
+  --color-ultra-600: var(--ultra-600);
+  --color-ultra-500: var(--ultra-500);
+  --color-ultra-400: var(--ultra-400);
+  --color-ultra-wash: var(--ultra-wash);
+
+  --color-allow: var(--allow);
+  --color-stepup: var(--stepup);
+  --color-hold: var(--hold);
+  --color-block: var(--block);
+
+  --font-mono: "Spline Sans Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-ui: "Switzer", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: "Zodiak", Georgia, serif;
+
+  --radius-console: 2px;
+  --radius-chip: 3px;
+}
+
+* {
+  box-sizing: border-box;
+  font-variant-numeric: tabular-nums;
+}
+
+.num {
+  font-feature-settings: "tnum" 1, "zero" 1;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--ink-900);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 20px;
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ultra-500);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+code, .mono {
+  font-family: var(--font-mono);
+}
+
+table {
+  border-collapse: collapse;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* new-row flash: 2px ultramarine left edge, 400ms, no slide/layout shift */
+@keyframes row-flash {
+  0% { box-shadow: inset 2px 0 0 var(--ultra-500); }
+  100% { box-shadow: inset 2px 0 0 transparent; }
+}
+.row-flash {
+  animation: row-flash 400ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .row-flash { animation: none; box-shadow: inset 2px 0 0 transparent; }
+}

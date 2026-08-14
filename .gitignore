@@ -1,0 +1,23 @@
+# Generated data (regenerate with `make generate`)
+/data/
+
+# Trained model artefacts (regenerate with `make train` / `make validate-ulb`)
+py/training/output/
+py/eval/output/
+py/training/.venv/
+
+# Go
+/bin/
+go/nazar
+*.test
+
+# Node
+node_modules/
+console/dist/
+
+# Local runtime state
+*.log
+.env
+
+# OS
+.DS_Store

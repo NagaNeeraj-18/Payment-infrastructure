@@ -5,14 +5,14 @@ import "fmt"
 // Finding is what a Signal emits. D4: "a signal that cannot explain itself cannot cross a
 // boundary" — enforced here at construction, not by convention.
 type Finding struct {
-	SignalID    string
-	Status      Status
-	Score       float64 // signal-specific units; 0 for pure boolean rails
-	Explanation string  // MANDATORY non-empty. NewFinding panics if empty.
-	Provenance  Provenance
-	LatencyMs   float64
-	Version     string
-	ReasonCode  string
+	SignalID    string     `json:"signal_id"`
+	Status      Status     `json:"status"`
+	Score       float64    `json:"score"` // signal-specific units; 0 for pure boolean rails
+	Explanation string     `json:"explanation"` // MANDATORY non-empty. NewFinding panics if empty.
+	Provenance  Provenance `json:"provenance"`
+	LatencyMs   float64    `json:"latency_ms"`
+	Version     string     `json:"version"`
+	ReasonCode  string     `json:"reason_code"`
 }
 
 // NewFinding is the only constructor. It enforces D4.

@@ -227,10 +227,14 @@ CREATE TABLE IF NOT EXISTS consortium_entries (
   token          TEXT NOT NULL,             -- HMAC(pepper, epoch || account)
   epoch          INTEGER NOT NULL,
   reporter_bank  TEXT NOT NULL REFERENCES participants(id),
+  kind           TEXT NOT NULL DEFAULT 'creditor_account',
+  threat_class   TEXT NOT NULL DEFAULT '',
   status         TEXT NOT NULL DEFAULT 'ACTIVE',  -- ACTIVE|RETRACTED|DISPUTED|EXPIRED
   confidence     REAL NOT NULL DEFAULT 1.0,
   case_id        TEXT,
   created_at     TIMESTAMPTZ NOT NULL,
-  expires_at     TIMESTAMPTZ
+  expires_at     TIMESTAMPTZ,
+  wire_json      JSONB              -- the exact signed wire payload (docs/05 §4.6), returned
+                                     -- verbatim by GET /v1/federation/wire/{id}
 );
 CREATE INDEX IF NOT EXISTS consortium_token_idx ON consortium_entries (token);
