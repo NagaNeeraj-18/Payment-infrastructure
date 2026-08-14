@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os/exec"
+	"strconv"
 	"time"
 
 	"nazar/internal/audit"
@@ -27,6 +28,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
 	mux.HandleFunc("POST /v1/decide", s.handleDecide)
 	mux.HandleFunc("GET /v1/decisions/{id}", s.handleGetDecision)
+	mux.HandleFunc("GET /v1/decisions/recent", s.handleRecentDecisions)
 	mux.HandleFunc("GET /v1/stream", s.hub.ServeHTTP)
 	mux.HandleFunc("GET /v1/latency", s.handleLatency)
 	mux.HandleFunc("GET /v1/resilience", s.handleResilience)
@@ -189,6 +191,25 @@ func (s *Server) handleGetDecision(w http.ResponseWriter, r *http.Request) {
 	}
 	txn, _ := persist.GetTransaction(ctx, s.db, id)
 	writeJSON(w, http.StatusOK, map[string]any{"decision": d, "transaction": txn})
+}
+
+// handleRecentDecisions backs the console's Live Monitor hydration on page load: real
+// persisted history from Postgres, not a session-local or in-memory cache — the SSE tail
+// (GET /v1/stream) only ever carries decisions made AFTER a client subscribes, so without
+// this a judge who opens the tab after running a scenario would see nothing at all.
+func (s *Server) handleRecentDecisions(w http.ResponseWriter, r *http.Request) {
+	limit := 100
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 && n <= 500 {
+			limit = n
+		}
+	}
+	rows, err := persist.GetRecentLiveDecisions(r.Context(), s.db, limit)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"rows": rows})
 }
 
 func (s *Server) handleLatency(w http.ResponseWriter, r *http.Request) {
