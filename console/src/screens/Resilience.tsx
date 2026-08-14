@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../api/client";
-import type { ResilienceResponse } from "../api/types";
-import { formatMinor, formatMs } from "../lib/format";
+import type { DependencyHealth, ResilienceResponse } from "../api/types";
+import { formatMinor } from "../lib/format";
+
+const DB_ICON = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <ellipse cx="12" cy="6" rx="8" ry="3" />
+    <path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6" />
+  </svg>
+);
 
 export function Resilience() {
   const [data, setData] = useState<ResilienceResponse | null>(null);
@@ -46,103 +53,107 @@ export function Resilience() {
 
   return (
     <div>
-      <div className="top-bar">
-        <h1>Resilience</h1>
-        <p>
-          Real dependency status via <code>GET /v1/resilience</code>, polled every 3s. Chaos controls
-          actually stop/start the Redis container via podman.
-        </p>
+      <div className="ph">
+        <div>
+          <h1>Resilience</h1>
+          <p>
+            Dependency status via <span className="mn">GET /v1/resilience</span>, polled every 3s. Chaos controls
+            actually stop/start the Redis container via podman.
+          </p>
+        </div>
+        <div className="sp" />
+        <span className={`st ${!data ? "s-nt" : degraded ? "s-sp" : "s-ok"}`}>
+          <i />
+          {!data ? "Checking…" : degraded ? "Degraded" : "Healthy"}
+        </span>
+        <button className="pill dan" disabled={busy !== null} onClick={() => doChaos("kill")}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M6 6l12 12" />
+          </svg>
+          {busy === "kill" ? "Killing…" : "Kill Redis"}
+        </button>
+        <button className="pill pri" disabled={busy !== null} onClick={() => doChaos("restore")}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M21 12a9 9 0 11-3-6.7" />
+            <path d="M21 3v6h-6" />
+          </svg>
+          {busy === "restore" ? "Restoring…" : "Restore Redis"}
+        </button>
       </div>
 
-      {error && <div className="deg" style={{ marginBottom: 16 }}>GET /v1/resilience failed: {error}</div>}
-
-      {degraded && (
-        <div className="deg" style={{ marginBottom: 16 }}>
-          DEGRADED · a dependency is unreachable · rails-only decisioning · value capped at{" "}
-          {data ? formatMinor(data.degradation_value_cap_minor) : "—"} · no BLOCK path active from any degraded
-          path
+      {error && (
+        <div className="deg" style={{ marginBottom: 14 }}>
+          GET /v1/resilience failed: {error}
         </div>
       )}
 
-      <div className="panel" style={{ marginBottom: 20 }}>
-        <div className="grid g2" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16 }}>
-          {data && (
-            <>
-              <DepCard name="Redis" dep={data.dependencies.redis} />
-              <DepCard name="Postgres" dep={data.dependencies.postgres} />
-            </>
-          )}
+      {degraded && data && (
+        <div className="deg" style={{ marginBottom: 14 }}>
+          DEGRADED · a dependency is unreachable · rails-only decisioning · value capped at{" "}
+          {formatMinor(data.degradation_value_cap_minor)} · no BLOCK path active from any degraded path
         </div>
+      )}
 
-        {data && (
-          <div style={{ display: "flex", gap: 32, marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--line)" }}>
-            <div>
-              <span className="lbl" style={{ display: "block", marginBottom: 4 }}>
-                async shed total
-              </span>
-              <span className="fig num">{data.async_shed_total}</span>
-            </div>
-            <div>
-              <span className="lbl" style={{ display: "block", marginBottom: 4 }}>
-                async queue depth
-              </span>
-              <span className="fig num">{data.async_queue_depth}</span>
-            </div>
-            <div>
-              <span className="lbl" style={{ display: "block", marginBottom: 4 }}>
-                degradation value cap
-              </span>
-              <span className="fig num">{formatMinor(data.degradation_value_cap_minor)}</span>
-            </div>
-          </div>
-        )}
+      {actionResult && (
+        <div className="sub" style={{ marginBottom: 14 }}>
+          {actionResult}
+        </div>
+      )}
+      {actionError && (
+        <div className="deg" style={{ marginBottom: 14 }}>
+          chaos action failed: {actionError}
+        </div>
+      )}
+
+      <div className="row r2" style={{ marginBottom: 14 }}>
+        <DepCard name="Redis" dep={data?.dependencies.redis} />
+        <DepCard name="Postgres" dep={data?.dependencies.postgres} />
       </div>
 
-      <div className="panel">
-        <div className="lbl" style={{ marginBottom: 12 }}>
-          Chaos controls · POST /v1/admin/chaos/redis
+      <div className="card">
+        <div className="ch">
+          <h2>Shed &amp; caps</h2>
+          <div className="sp" />
+          <span className="sub">live</span>
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button className="btn btn-danger" disabled={busy !== null} onClick={() => doChaos("kill")}>
-            {busy === "kill" ? "Killing…" : "Kill Redis"}
-          </button>
-          <button className="btn btn-primary" disabled={busy !== null} onClick={() => doChaos("restore")}>
-            {busy === "restore" ? "Restoring…" : "Restore Redis"}
-          </button>
-        </div>
-        {actionResult && (
-          <div className="lbl" style={{ marginTop: 10, color: "var(--ink-700)" }}>
-            {actionResult}
+        <div className="kvg">
+          <div>
+            <div className="k">Async shed</div>
+            <div className="v mny">{data ? data.async_shed_total : "—"}</div>
           </div>
-        )}
-        {actionError && <div className="deg" style={{ marginTop: 10 }}>chaos action failed: {actionError}</div>}
+          <div>
+            <div className="k">Queue depth</div>
+            <div className="v mny">{data ? data.async_queue_depth : "—"}</div>
+          </div>
+          <div>
+            <div className="k">Value cap</div>
+            <div className="v mny">{data ? formatMinor(data.degradation_value_cap_minor) : "—"}</div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-function DepCard({ name, dep }: { name: string; dep: { up: boolean; latency_ms: number; error?: string } }) {
+function DepCard({ name, dep }: { name: string; dep?: DependencyHealth }) {
   return (
-    <div className="panel">
-      <div className="lbl" style={{ marginBottom: 8 }}>
+    <div className="card met">
+      <div className="lb">
+        {DB_ICON}
         {name}
       </div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-        <span
-          className="mono"
-          style={{ fontSize: 12, fontWeight: 600, color: dep.up ? "var(--ink-900)" : "var(--ink-500)" }}
-        >
-          {dep.up ? "UP" : "DOWN"}
-        </span>
-        <span className="num" style={{ color: "var(--ink-500)" }}>
-          {formatMs(dep.latency_ms)}
+      <div className="vl mny">
+        {dep ? dep.latency_ms.toFixed(2) : "—"}
+        <span className="un"> ms</span>
+      </div>
+      <div className="ft">
+        <div className="dd">{dep?.error ?? (dep ? (dep.up ? "reachable" : "unreachable") : "—")}</div>
+        <span className={`st ${dep?.up ? "s-ok" : "s-sp"}`}>
+          <i />
+          {dep ? (dep.up ? "Up" : "Down") : "—"}
         </span>
       </div>
-      {dep.error && (
-        <div className="lbl" style={{ marginTop: 6, color: "var(--block)" }}>
-          {dep.error}
-        </div>
-      )}
     </div>
   );
 }
