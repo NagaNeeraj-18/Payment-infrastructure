@@ -209,6 +209,13 @@ export interface StreamDecisionEvent {
   degraded: string[] | null;
 }
 
+// GET /v1/decisions/recent — real persisted history (Postgres), same shape as the SSE
+// stream row, used to hydrate Live Monitor on load rather than leaving it empty until the
+// next decision happens to fire after the tab connects.
+export interface RecentDecisionsResponse {
+  rows: StreamDecisionEvent[] | null;
+}
+
 export type DemoScenario = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H";
 
 export interface DemoStep {
