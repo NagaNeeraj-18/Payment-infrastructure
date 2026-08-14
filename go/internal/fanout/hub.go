@@ -6,7 +6,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync"
+	"time"
 )
+
+// heartbeatInterval keeps the connection demonstrably alive (and any intermediate proxy
+// from timing it out) even when no decision has fired since the client connected.
+const heartbeatInterval = 15 * time.Second
 
 type Hub struct {
 	mu      sync.RWMutex
@@ -47,6 +52,11 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+	// Send headers immediately: without this, nothing reaches the client — not even the
+	// response line — until the first decision fires, so EventSource sits in CONNECTING
+	// indefinitely on an idle stream instead of reporting itself open.
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
 
 	ch := make(chan []byte, 32)
 	h.mu.Lock()
@@ -58,11 +68,19 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.mu.Unlock()
 	}()
 
+	ticker := time.NewTicker(heartbeatInterval)
+	defer ticker.Stop()
+
 	notify := r.Context().Done()
 	for {
 		select {
 		case <-notify:
 			return
+		case <-ticker.C:
+			if _, err := w.Write([]byte(": heartbeat\n\n")); err != nil {
+				return
+			}
+			flusher.Flush()
 		case frame := <-ch:
 			if _, err := w.Write(frame); err != nil {
 				return

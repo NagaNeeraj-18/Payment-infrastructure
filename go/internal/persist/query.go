@@ -71,6 +71,53 @@ func GetLatestDecision(ctx context.Context, db *sql.DB, e2eID string) (*contract
 	return &d, nil
 }
 
+// LiveRow is the same shape the SSE hub pushes on `event: decision` — used to hydrate the
+// console's Live Monitor with real history on page load, rather than leaving it empty until
+// the next decision happens to stream in after the tab connects.
+type LiveRow struct {
+	EndToEndID      string   `json:"end_to_end_id"`
+	DecidedAtMs     int64    `json:"decided_at_ms"`
+	DebtorAccount   string   `json:"debtor_account"`
+	CreditorAccount string   `json:"creditor_account"`
+	AmountMinor     int64    `json:"amount_minor"`
+	Rail            string   `json:"rail"`
+	Action          string   `json:"action"`
+	TotalMs         float64  `json:"total_ms"`
+	Degraded        []string `json:"degraded"`
+}
+
+// GetRecentLiveDecisions reads the most recent LIVE decisions back out of Postgres, newest
+// first — real persisted history, not a session-local cache. Backs GET /v1/decisions/recent.
+func GetRecentLiveDecisions(ctx context.Context, db *sql.DB, limit int) ([]LiveRow, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT d.end_to_end_id, extract(epoch from d.decided_at)*1000, t.debtor_account,
+		       t.creditor_account, t.amount_minor, t.rail, d.action, d.total_ms, d.degraded
+		FROM decisions d
+		JOIN transactions t ON t.end_to_end_id = d.end_to_end_id
+		WHERE d.kind = 'LIVE'
+		ORDER BY d.decided_at DESC
+		LIMIT $1`, limit)
+	if err != nil {
+		return nil, fmt.Errorf("persist: query recent decisions: %w", err)
+	}
+	defer rows.Close()
+
+	var out []LiveRow
+	for rows.Next() {
+		var r LiveRow
+		var decidedAtMs float64
+		var degraded pqArray
+		if err := rows.Scan(&r.EndToEndID, &decidedAtMs, &r.DebtorAccount, &r.CreditorAccount,
+			&r.AmountMinor, &r.Rail, &r.Action, &r.TotalMs, &degraded); err != nil {
+			return nil, fmt.Errorf("persist: scan recent decision: %w", err)
+		}
+		r.DecidedAtMs = int64(decidedAtMs)
+		r.Degraded = []string(degraded)
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 // GetTransaction reads the canonical event back for the investigation screen.
 func GetTransaction(ctx context.Context, db *sql.DB, e2eID string) (map[string]any, error) {
 	row := db.QueryRowContext(ctx, `
