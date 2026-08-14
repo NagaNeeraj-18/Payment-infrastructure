@@ -30,6 +30,28 @@ export function useDecisionStream() {
     let watchdog: number;
     let cancelled = false;
 
+    // Hydrate with real persisted history first: the SSE tail below only ever carries
+    // decisions made AFTER this subscribes, so without this a tab opened after a scenario
+    // already ran would show nothing, even though the backend genuinely decided and stored
+    // it — not a seeding artifact, just a live-tail-only stream needing a history preload.
+    (async () => {
+      try {
+        const { rows: recent } = await api.recentDecisions(100);
+        if (cancelled || !recent || recent.length === 0) return;
+        setRows((prev) => {
+          if (prev.length > 0) return prev; // an SSE row already arrived first — don't clobber it
+          const seeded = recent.map((r) => {
+            const id = `${r.end_to_end_id}-${r.decided_at_ms}`;
+            seenIds.current.add(id);
+            return { ...r, _id: id, _fresh: false };
+          });
+          return seeded.slice(0, MAX_ROWS);
+        });
+      } catch {
+        // history hydration is best-effort — the live tail below still works either way
+      }
+    })();
+
     function connect() {
       es = new EventSource(api.streamUrl());
       setConnState((prev) => (prev === "open" ? prev : "connecting"));

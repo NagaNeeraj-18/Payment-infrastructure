@@ -62,7 +62,7 @@ export function LiveMonitor() {
         <div className="grid" style={{ display: "grid", gridTemplateColumns: "1fr 175px", gap: 24 }}>
           <div>
             <div className="lbl" style={{ marginBottom: 10 }}>
-              Live decisions · this session ({metrics.n})
+              Live decisions · recent + live ({metrics.n})
             </div>
             <div style={{ maxHeight: 560, overflowY: "auto" }}>
               <table className="dtable">
@@ -81,7 +81,7 @@ export function LiveMonitor() {
                       <td colSpan={5} style={{ color: "var(--ink-300)" }}>
                         {connState === "connecting"
                           ? "Connecting to stream…"
-                          : "No decisions observed yet this session. Fire a transaction via POST /v1/decide or run a demo scenario."}
+                          : "No decisions recorded yet. Fire a transaction via POST /v1/decide or run a demo scenario."}
                       </td>
                     </tr>
                   )}
@@ -114,13 +114,13 @@ export function LiveMonitor() {
             </div>
             <div style={{ marginBottom: 18 }}>
               <span className="lbl" style={{ display: "block", marginBottom: 4 }}>
-                value prevented · this session
+                value prevented · shown above
               </span>
               <span className="hero">{formatMinorCompact(metrics.valuePrevented)}</span>
             </div>
             <div style={{ marginBottom: 18 }}>
               <span className="lbl" style={{ display: "block", marginBottom: 4 }}>
-                challenge rate · this session
+                challenge rate · shown above
               </span>
               <span className="fig">
                 {metrics.challengeRate === null ? "—" : `${metrics.challengeRate.toFixed(1)}%`}

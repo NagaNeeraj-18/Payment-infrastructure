@@ -12,10 +12,19 @@ import type {
   HealthzResponse,
   LatencyResponse,
   PolicyBundle,
+  RecentDecisionsResponse,
   ResilienceResponse,
 } from "./types";
 
-export const API_BASE = "http://localhost:8080";
+// Resolves to whatever host served this page, port 8080 — so a phone on the same network as
+// the console (e.g. scanning the judge-demo QR) reaches the real backend without hardcoding
+// "localhost", which only ever means the phone itself. Falls back to localhost for anything
+// not served over http/https (e.g. a file:// preview).
+export const API_BASE = (() => {
+  if (typeof window === "undefined" || !window.location.hostname) return "http://localhost:8080";
+  const proto = window.location.protocol === "https:" ? "https:" : "http:";
+  return `${proto}//${window.location.hostname}:8080`;
+})();
 
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`);
@@ -52,5 +61,7 @@ export const api = {
   calibration: () => getJSON<CalibrationResponse>("/v1/calibration"),
   runDemo: (scenario: DemoScenario) =>
     postJSON<DemoRunResponse>(`/v1/demo/run/${scenario}`),
+  recentDecisions: (limit = 100) =>
+    getJSON<RecentDecisionsResponse>(`/v1/decisions/recent?limit=${limit}`),
   streamUrl: () => `${API_BASE}/v1/stream`,
 };

@@ -1,229 +1,187 @@
-# 08 — Brand Kit
+# 08 — Brand Kit (final)
 
-**Binding on all UI.** Reference points: Unit21 and Sardine (risk console), Increase and Modern
-Treasury (density and restraint), Mercury (editorial display), Ramp (solid colour blocks).
+Reference implementation: **`console-target-state.html`** — all 10 screens, desktop and mobile.
+Build against the file; this document is the token reference and the rules.
 
-**Direction — "Clearing House."** Near-white paper, extreme density, monospace data, and one
-saturated ultramarine used as solid blocks rather than tint. Status colour appears *only* on risk
-state. The console is light, not dark — that is the category norm and it survives a projector.
-
-Two surfaces:
-
-| | **Payer app** (S0) | **Console** (S1–S7) |
-|---|---|---|
-| Ground | Warm paper | Cool paper |
-| Type | Zodiak display + Switzer | Spline Sans Mono, everywhere |
-| Radius | 12 px | 2 px |
-| Row | Generous | 26 px |
-| Voice | Human banking | Engineering |
+Language: Mercury (surface, money typography, sidebar) + Unit21 (console structure, graph, case rail).
 
 ---
 
-## 1 — Type
+## 1 — Screen inventory
 
-Three faces. **No Inter, no Plex, no Space Grotesk.**
+| # | Screen | Route | Primary content |
+|---|---|---|---|
+| 1 | Live Monitor | `/` | 4 metrics · area chart · session list · decisions table · ladder · dependencies |
+| 2 | Investigation | `/case/:id` | Network graph · SHAP · four-state chips · linked txns · case rail |
+| 3 | Resilience | `/resilience` | Dependency metrics · degradation ladder · shed/caps · event log |
+| 4 | Audit Chain | `/audit` | Height/verify metrics · Merkle root · entry table with prev-hash links |
+| 5 | Demo Runner | `/demo` | 8 scenario cards, each with expected outcome pill |
+| 6 | Time Machine | `/time-machine` | Replay banner · persisted-vs-recomputed diff · replay history |
+| 7 | Graph / Ring | `/graph` | Ring vs merchant control graphs side by side · component table |
+| 8 | Calibration | `/calibration` | Reliability diagram · operating points · prevalence sensitivity · registry |
+| 9 | Latency | `/latency` | Histogram with p99 marker · stage breakdown · load-test runs |
+| 10 | Payer App | `/pay` (mobile) | Pay → Interstitial → Step-up → Result |
+
+**Every nav item routes to its own screen.** No two nav entries share a target.
+
+---
+
+## 2 — Type
 
 ```html
-<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600&f[]=zodiak@400,500&display=swap">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spline+Sans+Mono:wght@400;500;600&display=swap">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
 ```
 
 ```css
---font-mono:    "Spline Sans Mono", ui-monospace, SFMono-Regular, monospace;
---font-ui:      "Switzer", ui-sans-serif, system-ui, -apple-system, sans-serif;
---font-display: "Zodiak", Georgia, serif;
+--f:"Geist","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+--fm:"Geist Mono",ui-monospace,SFMono-Regular,monospace;
 ```
 
-| Face | Role |
+Mono is for IDs, hashes, timestamps, feature names and ring IDs **only**. Everything else is Geist.
+
+| Use | Size / weight / tracking |
 |---|---|
-| **Spline Sans Mono** | Every numeral, table cell, ID, hash, timestamp, chip, label, eyebrow. The console is ~80 % this face |
-| **Switzer** | Buttons, narrative prose, payer app body |
-| **Zodiak** | Display only — the headline figure, the payer headline, section numerals. Never below 20 px |
+| Page title | 25 / 600 / −.025em |
+| Card title | 15 / 600 / −.014em |
+| Metric value | 27 / 600 / −.02em |
+| Hero figure | 33 / 600 / −.028em |
+| Payer amount | 38 / 600 / −.03em |
+| Body, cell | 13.5 / 400 |
+| Label, caption | 12–12.5 / 400 · `--ink3` |
+| Status pill | 12 / 500 |
+| Mono ID | 12 |
 
-Scale:
-
-```css
---t-micro:  10px/14px;   /* chips, footer      mono, ucase, .09em */
---t-label:  11px/15px;   /* eyebrows           mono, ucase, .07em */
---t-cell:   12px/16px;   /* table              mono, tabular      */
---t-body:   13px/20px;   /* prose              ui                 */
---t-lead:   15px/22px;   /* alert headline     ui, 500            */
---t-figure: 24px/28px;   /* strip metric       mono, 500          */
---t-hero:   44px/46px;   /* value prevented    display            */
---t-amount: 38px/42px;   /* payer amount       mono, 500          */
-```
+**Money always carries superscript decimals**, em-relative so it scales:
 
 ```css
-* { font-variant-numeric: tabular-nums; }
-.num { font-feature-settings: "tnum" 1, "zero" 1; }
+.mny{font-weight:600;letter-spacing:-.02em;white-space:nowrap}
+.mny sup{font-size:.62em;font-weight:500;color:var(--ink3);
+  vertical-align:baseline;position:relative;top:-.52em;margin-left:.5px}
 ```
 
-Slashed zero on everything numeric — `0` and `O` sit next to each other in hash columns.
+Format `en-IN` from `int64` paise at the render boundary — `₹4,28,600.00`, never `₹428,600.00`.
+Strip figures use lakh/crore (`₹4.2L`), never K/M.
 
 ---
 
-## 2 — Colour
-
-### Paper and ink
+## 3 — Colour
 
 ```css
---canvas:      #F6F6F4;   /* app background        */
---panel:       #FFFFFF;   /* cards, tables         */
---sunken:      #EFEFEC;   /* wells, inputs, hover  */
---line:        #E2E2DE;   /* hairline              */
---line-strong: #C6C6C0;   /* section rule          */
+--canvas:#F7F8FA; --panel:#FFF; --hover:#F4F5F7; --sunken:#FAFBFC;
+--bd:#E9EBF0; --bd2:#DFE2E9;
+--ink:#0F172A; --ink2:#475467; --ink3:#667085; --ink4:#98A2B3;
 
---ink-900: #111310;   /* primary   */
---ink-700: #3E413C;   /* secondary */
---ink-500: #6C706A;   /* labels    */
---ink-300: #A0A49D;   /* disabled  */
+--indigo:#4F46E5; --indigoh:#4338CA; --indigow:#EEF0FE;   /* primary          */
+--teal:#2AA3B5; --tealw:#E6F5F7;                           /* graph payer nodes */
+--coral:#F2695C; --coralw:#FEF0EE;                         /* flagged node      */
+--navy:#0E3D54;                                            /* freeze action     */
+
+--ok:#12805C;   --okw:#E7F5F0;     /* allowed  */
+--warn:#B54708; --warnw:#FDF4E7;   /* step-up  */
+--hold:#B93815; --holdw:#FDF1EC;   /* hold     */
+--stop:#B42318; --stopw:#FEF1F0;   /* blocked  */
+
+--sh:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.05);
+--r:14px; --r2:10px; --r3:8px;
 ```
 
-Payer app runs one notch warmer: `--paper: #FBFAF7`, `--paper-sunken: #F3F1EC`.
+Indigo is **solid fill only** — primary button, active nav, chart line, ladder pip. Never a wash
+behind body text (`--indigow` is for the active nav pill and selected row only).
 
-### Ultramarine — structure, not tint
-
-```css
---ultra-600: #16289B;
---ultra-500: #1F35B5;   /* solid blocks, primary action */
---ultra-400: #3D53DA;   /* hover                        */
---ultra-wash:#EAECFB;   /* selection only               */
-```
-
-Used as **solid fills on large surfaces** — the decision block, the primary button, the active nav
-rail. Not as a 10 % background tint behind text. If it appears as a pale wash anywhere except
-selection, it is wrong.
-
-### Risk — reserved
-
-```css
---allow:  #17795A;
---stepup: #9A6410;
---hold:   #8A3D14;
---block:  #A82434;
-```
-
-Each has a 12 %-alpha fill for chip backgrounds. `ALLOW_MONITOR` is `--allow` outlined, not a new
-colour. **`CAP` is off-ladder and renders in `--ink-700` with a `⌐` glyph** — never a risk hue.
-Degradation renders in `--ink-500`, never red.
-
-### Not used
-
-Gradients · glassmorphism · drop shadows (hairlines only) · cyan · violet · dark mode · a green
-success badge on an allowed payment · emoji · spinners.
+Not used: gradients on surfaces · glassmorphism · dark mode · serif · uppercase-mono labels ·
+green "verified" badge on an allow · spinners · emoji.
 
 ---
 
-## 3 — Signature: the decision block
+## 4 — Components
 
-The one saturated surface in the product. Solid ultramarine, white type, sits at the head of S2 and
-in the case queue detail.
+**Status pill** — tinted background + matching 6px dot + coloured text. Never bare coloured text.
+Six variants: `s-ok · s-wn · s-hd · s-sp · s-nt · s-in`. `Capped` uses `s-nt` (grey) because a
+regulatory ceiling is not a risk judgement. Degradation also uses `s-nt`, never red.
 
-```
-┌──────────────────────────────┐
-│  STEP_UP_INTERSTITIAL        │   ← 15px mono, 600, white
-│                              │
-│  ALLOW              ·        │
-│  ALLOW_MONITOR      ·        │
-│  STEP_UP            ·        │
-│  STEP_UP_INTERSTITIAL  ●     │
-│  ─ ─ ─ advisory ceiling ─ ─  │
-│  HOLD               ·        │
-│                              │
-│  ⌐ CAP        ⊘ BLOCK        │   ← detached, below rule
-└──────────────────────────────┘
-```
+**Entity cell** — 29px initials circle + name (13.5/500/17px) + mono ID (11/14px) in a tight flex
+column. Row padding 9px, total row height ≈48px. Never render a bare hash on both sides of a `→`.
 
-All five rungs always render. The dashed ceiling reads `policy.advisory_max_rung` from the decision
-record. `CAP` and `BLOCK` sit below a rule because they are not rungs.
+**Metric card** — icon + label, value with superscript, footer row with delta text and a 62×22
+sparkline.
 
----
+**Decision ladder** — five rungs always rendered; landed rung indigo pip with a 3.5px `--indigow`
+ring; dashed *advisory ceiling* divider read from `policy.advisory_max_rung`; `Cap` and `Block` as
+pills below a rule, because they are not rungs.
 
-## 4 — Four-state chips
+**Four-state chips** — `✓ CLEAR` outline · `▲ FIRED` amber tint · `— NOT_APPLICABLE` dashed ·
+`○ NOT_EVALUATED` diagonal hatch with reason appended. Four shapes, so the set survives greyscale.
 
-Shape first, colour second — they must survive greyscale.
+**Case rail** — meta rows, then solid-fill workflow buttons: indigo escalate, green dismiss, navy
+freeze, olive silence, coral confirm-fraud.
 
-| State | Glyph | Treatment |
-|---|---|---|
-| `CLEAR` | `✓` | 1 px `--line-strong`, no fill, `--ink-700` |
-| `FIRED` | `▲` | 1 px `--stepup`, 12 % fill, `--stepup` |
-| `NOT_APPLICABLE` | `—` | 1 px **dashed** `--line`, `--ink-300` |
-| `NOT_EVALUATED` | `○` | **4 px diagonal hatch**, 1 px `--line-strong`, `--ink-500` |
+**Graph** — teal r21 payer nodes with white person glyphs, coral r28 flagged beneficiary, `#CFE3C4`
+edges with `#EDF6E8` amount pills in `#3F7A2E` mono. Merchant control graph uses grey nodes and a
+green centre to show ring_score 0.
 
-`NOT_EVALUATED` always shows its reason (`cold_start`, `stale`, `off_scale`). Radius 3 px, not pill.
+**Charts** — indigo `2.2px` line, gradient area fill at 20%→0 opacity, `#EFF1F5` gridlines,
+endpoint dot. Histograms use indigo bars with `--indigo-l` tail bars and a dashed amber p99 marker.
 
 ---
 
-## 5 — Density and geometry
+## 5 — Mobile (payer app)
 
-```css
---r-console: 2px;   --r-payer: 12px;   --r-chip: 3px;
---row: 26px;        --row-lg: 32px;
-/* spacing: 4 8 12 16 24 32 48 */
-```
+Four screens: **Pay → Interstitial → Step-up → Result.**
 
-Tables: 1 px `--line` bottom rule per row, no zebra, `--sunken` on hover. Panels: 1 px `--line`, no
-shadow. Left nav rail 52 px, active item a solid ultramarine block.
+- Frame 286px, `38px` outer radius, `30px` screen radius, notch pill.
+- Amount 38/600/−.03em with superscript paise.
+- Beneficiary card: 36px avatar + name (14/600) + VPA in mono 12.
+- Interstitial: amber-tinted card, 34px warning icon, 17px headline, then **three plain-language facts** with icons — first-seen, fan-in, forwarding speed.
+- Buttons 14px radius, 14px padding, 15/600. `Go back` is the dark weighted action; `Send anyway` is ghost. **The customer keeps the choice.**
+- Step-up: six 52px OTP cells, filled cells indigo-tinted.
+- Result: 62px tinted circle, 20px headline, and a **Report a problem** action — recovery is one tap.
 
-Motion: new row flashes a 2 px ultramarine left edge for 400 ms — no slide, no layout shift.
-Confirm-fraud fires four staggered fades, 180 ms each, 60 ms apart. Nothing else animates.
-`prefers-reduced-motion` kills all of it.
-
----
-
-## 6 — Numbers and copy
-
-```ts
-// ₹4,25,000.00 — en-IN grouping from int64 paise, formatted at the render boundary only
-new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(paise / 100)
-// strip figures: ₹4.2L, ₹1.3Cr — lakh/crore, never K/M
-```
-
-Latency always renders as three figures (`queue / service / total`), total emphasised. A lone
-latency number is a bug. Hashes truncate mid: `a3f1…9e2b`, click to copy.
+**Copy rules, binding:**
 
 | Never | Always |
 |---|---|
-| "This account was created 3 days ago" | "We first saw this account 3 days ago" |
-| "Verified" / "Safe" / green tick | Console `ALLOWED`; payer app, nothing |
-| "Advisory escalation" (payer) | "Take a look before you send" |
-| "94% of fraud detected" | "Recovers 94% of generated mule fan-out" |
+| "created 3 days ago" | "we first saw this account 3 days ago" |
+| "Verified" / green tick on an allow | nothing — an allow is the absence of a finding |
+| "Step-up interstitial", "advisory", "ring_score" | "Take a look before you send" |
+| "Fraud detected" | "This looks unusual" |
 
-Payer surfaces carry **zero** engineering vocabulary. Buttons name their consequence and keep the
-name: `Confirm fraud` → `Confirmed`.
+Zero engineering vocabulary on any payer surface.
 
 ---
 
-## 7 — Handover
-
-Paste §1, §2, §5 into `console/src/styles/tokens.css`. No hex literal outside that file.
-
-**Tailwind v4:**
+## 6 — Layout
 
 ```css
-@theme {
-  --color-canvas: var(--canvas);
-  --color-panel:  var(--panel);
-  --color-line:   var(--line);
-  --color-ink-900:var(--ink-900);
-  --color-ultra:  var(--ultra-500);
-  --color-allow:  var(--allow);
-  --color-stepup: var(--stepup);
-  --color-hold:   var(--hold);
-  --color-block:  var(--block);
-  --font-mono:    "Spline Sans Mono", monospace;
-  --font-ui:      "Switzer", system-ui, sans-serif;
-  --font-display: "Zodiak", Georgia, serif;
-  --radius-console: 2px;
-}
+.app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+.side{position:sticky;top:0;height:100vh;overflow-y:auto}
+.top{position:sticky;top:0;z-index:20}
+.page{padding:24px 26px 56px;max-width:1560px}
+.screen{display:none}.screen.on{display:block}   /* never inline display:contents */
+.sp1{grid-template-columns:1fr 328px;gap:14px}   /* main + rail */
+.sp2{grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:1200px){.sp1,.sp2{grid-template-columns:1fr}}
 ```
 
-**Build order:** tokens → `<DecisionBlock>` + `<StateChip>` → S2 alert detail → S1 → payer app →
-S3–S7 with no new decisions.
+Card grids use `grid-auto-rows:1fr` so rows are never ragged. Tables sit flush to card edges with a
+`--sunken` header row and sort carets on sortable columns.
 
-**Done when:** no hex outside tokens · all four chip states distinct in greyscale · every numeral
-tabular and slot-width fixed · no lone latency figure · no spinner · money `en-IN` from paise ·
-reduced-motion honoured · payer app free of engineering words · no green success state.
+---
+
+## 7 — Done when
+
+- [ ] All 10 nav items route to distinct screens
+- [ ] Payer app implemented as its own responsive route, not a desktop card
+- [ ] Every money figure has superscript decimals and `en-IN` grouping from paise
+- [ ] Every status is a tinted pill with a dot
+- [ ] Every account cell has avatar + name + mono ID; table rows ≈48px
+- [ ] Latency shown as queue / service / total, total emphasised; `max` outliers captioned
+- [ ] Decision ladder renders all five rungs plus the advisory ceiling
+- [ ] Four chip states distinguishable in greyscale
+- [ ] `Capped` and degradation are grey, never red or amber
+- [ ] No serif, no dark mode, no gradients on surfaces, no spinners
+- [ ] Fonts load from Google — check the network tab, Georgia must never appear
+- [ ] `prefers-reduced-motion` honoured
 
 ---
 

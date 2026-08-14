@@ -44,6 +44,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/consortium/dispute", s.handleConsortiumDispute)
 	mux.HandleFunc("GET /v1/consortium/lookup/{account}", s.handleConsortiumLookup)
 	mux.HandleFunc("GET /v1/federation/wire/{id}", s.handleFederationWire)
+	mux.HandleFunc("POST /v1/judge/session", s.handleJudgeSession)
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
