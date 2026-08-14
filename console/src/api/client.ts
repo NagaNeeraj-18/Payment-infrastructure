@@ -10,6 +10,7 @@ import type {
   DemoScenario,
   GraphResponse,
   HealthzResponse,
+  JudgeSessionResponse,
   LatencyResponse,
   PolicyBundle,
   RecentDecisionsResponse,
@@ -63,5 +64,6 @@ export const api = {
     postJSON<DemoRunResponse>(`/v1/demo/run/${scenario}`),
   recentDecisions: (limit = 100) =>
     getJSON<RecentDecisionsResponse>(`/v1/decisions/recent?limit=${limit}`),
+  judgeSession: () => postJSON<JudgeSessionResponse>("/v1/judge/session"),
   streamUrl: () => `${API_BASE}/v1/stream`,
 };

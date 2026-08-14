@@ -17,7 +17,7 @@ export function PercentileLatency({ data, compact = false }: { data: LatencyResp
       {cells.map((c) => (
         <div key={c.k} className="lat" style={{ flexDirection: "column", gap: 1 }}>
           <span className="k">{c.k}</span>
-          <span className={`v num ${c.emphasize ? "" : ""}`} style={c.emphasize ? { color: "var(--ink-900)", fontWeight: 600 } : undefined}>
+          <span className={`v num ${c.emphasize ? "" : ""}`} style={c.emphasize ? { color: "var(--ink)", fontWeight: 600 } : undefined}>
             {formatMs(c.v)}
           </span>
         </div>

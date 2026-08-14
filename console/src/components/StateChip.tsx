@@ -8,10 +8,10 @@ const GLYPH: Record<Status, string> = {
 };
 
 const CLASS: Record<Status, string> = {
-  CLEAR: "chip c-clear",
-  FIRED: "chip c-fired",
-  NOT_APPLICABLE: "chip c-na",
-  NOT_EVALUATED: "chip c-ne",
+  CLEAR: "chip",
+  FIRED: "chip f",
+  NOT_APPLICABLE: "chip na",
+  NOT_EVALUATED: "chip ne",
 };
 
 interface StateChipProps {

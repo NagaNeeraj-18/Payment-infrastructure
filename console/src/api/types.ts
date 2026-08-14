@@ -209,6 +209,17 @@ export interface StreamDecisionEvent {
   degraded: string[] | null;
 }
 
+// POST /v1/judge/session — seeds a fresh real payer with real warm-up history (via the same
+// DecideAndPersist path everything else uses), for the judge-facing Payer App.
+export interface JudgeSessionResponse {
+  session_id: string;
+  payer_account: string;
+  merchant_account: string;
+  merchant_label: string;
+  scam_account: string;
+  scam_label: string;
+}
+
 // GET /v1/decisions/recent — real persisted history (Postgres), same shape as the SSE
 // stream row, used to hydrate Live Monitor on load rather than leaving it empty until the
 // next decision happens to fire after the tab connects.

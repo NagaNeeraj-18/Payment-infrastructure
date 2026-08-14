@@ -17,10 +17,10 @@ export function ContributionsBar({ contributions }: ContributionsBarProps) {
         const neg = v < 0;
         return (
           <Fragment key={id}>
-            <span>{id}</span>
+            <span className="k">{id}</span>
             <div className="trk">
               <i
-                className={neg ? "neg" : ""}
+                className={neg ? "n" : ""}
                 style={neg ? { right: "50%", left: "auto", width: `${pct}%` } : { left: "50%", width: `${pct}%` }}
               />
             </div>

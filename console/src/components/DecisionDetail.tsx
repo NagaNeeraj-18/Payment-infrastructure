@@ -11,8 +11,10 @@ interface DecisionDetailProps {
   advisoryMaxRung?: string;
 }
 
-/** The Investigation / Alert Detail view — S2, "the whole product". Also reused verbatim
- * by Time Machine: this IS the persisted record, never recomputed. */
+/** The Investigation / Alert Detail view — also reused verbatim by Time Machine: this IS
+ * the persisted record, never recomputed. No fabricated "case" panel (assignee, SLA,
+ * escalate/freeze/confirm-fraud workflow) — there is no case-management backend behind
+ * those actions at P0, so they are left out rather than rendered as buttons that do nothing. */
 export function DecisionDetail({ decision, transaction, advisoryMaxRung }: DecisionDetailProps) {
   const fv = decision.features;
   const featureIds = fv ? Object.keys(fv.status).sort() : [];
@@ -20,164 +22,206 @@ export function DecisionDetail({ decision, transaction, advisoryMaxRung }: Decis
   const degraded = decision.degraded ?? [];
 
   return (
-    <div>
-      <div className="panel" style={{ marginBottom: 20 }}>
-        <div className="grid" style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 24, alignItems: "start" }}>
-          <div>
-            <div style={{ fontSize: 15, lineHeight: "22px", fontWeight: 500, marginBottom: 3 }}>
-              {transaction?.instructed_amount_minor !== undefined
-                ? formatMinor(transaction.instructed_amount_minor)
-                : "—"}{" "}
-              · {decision.rail_fired || transaction?.rail || "—"}
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="sp1">
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div className="card">
+            <div className="ch">
+              <h2>{formatMinor(transaction?.instructed_amount_minor)}</h2>
+              <span className="tag">{decision.rail_fired || transaction?.rail || "—"}</span>
+              <div className="sp" />
+              <span className="sub">{decision.kind}</span>
             </div>
-            <div className="lbl" style={{ marginBottom: 18 }}>
-              {decision.end_to_end_id} · {decision.kind}
-              {decision.reason_codes && decision.reason_codes.length > 0
-                ? ` · ${decision.reason_codes.join(", ")}`
-                : ""}
+            <div style={{ padding: "0 18px 12px", fontFamily: "var(--font-mono)", fontSize: 11.5, color: "var(--ink4)" }}>
+              {decision.end_to_end_id}
+              {decision.reason_codes && decision.reason_codes.length > 0 ? ` · ${decision.reason_codes.join(", ")}` : ""}
             </div>
-
-            <div style={{ display: "flex", gap: 32, flexWrap: "wrap", marginBottom: 20 }}>
+            <div className="kvg" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
               <div>
-                <span className="lbl" style={{ display: "block", marginBottom: 4 }}>
-                  p_model
-                </span>
-                <span className="fig num">{decision.p_model?.toFixed(4) ?? "—"}</span>
+                <div className="k">p_model</div>
+                <div className="v mn">{decision.p_model?.toFixed(4) ?? "—"}</div>
               </div>
               <div>
-                <span className="lbl" style={{ display: "block", marginBottom: 4 }}>
-                  p_prevalence_adj
-                </span>
-                <span className="fig num">{decision.p_prevalence_adj?.toFixed(4) ?? "—"}</span>
+                <div className="k">p_prevalence_adj</div>
+                <div className="v mn">{decision.p_prevalence_adj?.toFixed(4) ?? "—"}</div>
               </div>
               <div>
-                <span className="lbl" style={{ display: "block", marginBottom: 4 }}>
-                  expected loss
-                </span>
-                <span className="fig num">{formatMinor(decision.expected_loss_minor)}</span>
-              </div>
-              <div>
-                <span className="lbl" style={{ display: "block", marginBottom: 4 }}>
-                  expected cost
-                </span>
-                <span className="fig num">{formatMinor(decision.expected_cost_minor)}</span>
-              </div>
-              <div>
-                <span className="lbl" style={{ display: "block", marginBottom: 4 }}>
-                  latency
-                </span>
-                <LatencyBlock queueMs={decision.queue_delay_ms} serviceMs={decision.service_ms} totalMs={decision.total_ms} />
-              </div>
-            </div>
-
-            {decision.contributions && Object.keys(decision.contributions).length > 0 ? (
-              <>
-                <div className="lbl" style={{ marginBottom: 10 }}>
-                  Contributions · signed, positive = risk-increasing
+                <div className="k">Expected loss</div>
+                <div className="v mny" style={{ fontSize: 15 }}>
+                  {formatMinor(decision.expected_loss_minor)}
                 </div>
-                <ContributionsBar contributions={decision.contributions} />
-              </>
+              </div>
+              <div>
+                <div className="k">Expected cost</div>
+                <div className="v mny" style={{ fontSize: 15 }}>
+                  {formatMinor(decision.expected_cost_minor)}
+                </div>
+              </div>
+            </div>
+            <div style={{ padding: "14px 18px 4px" }}>
+              <LatencyBlock queueMs={decision.queue_delay_ms} serviceMs={decision.service_ms} totalMs={decision.total_ms} />
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="ch">
+              <h2>Why this fired</h2>
+              <div className="sp" />
+              <span className="sub">model {decision.model_bundle_version || "—"}</span>
+            </div>
+            {decision.contributions && Object.keys(decision.contributions).length > 0 ? (
+              <ContributionsBar contributions={decision.contributions} />
             ) : (
-              <div className="lbl" style={{ color: "var(--ink-300)" }}>
+              <div style={{ padding: "0 18px 16px", color: "var(--ink4)", fontSize: 12.5 }}>
                 contributions: null on this decision (rails-only / rule path, no model attribution)
               </div>
             )}
-
-            <div className="lbl" style={{ margin: "20px 0 9px" }}>
-              Findings
+            <div className="chips">
+              {findings.length === 0 && <span style={{ color: "var(--ink4)", fontSize: 12.5 }}>no findings recorded</span>}
+              {findings.map((f) => (
+                <StateChip key={f.signal_id} label={f.signal_id} status={f.status} reason={f.reason_code} />
+              ))}
             </div>
-            {findings.length === 0 && <span style={{ color: "var(--ink-300)" }}>no findings recorded</span>}
-            {findings.map((f) => (
-              <StateChip key={f.signal_id} label={f.signal_id} status={f.status} reason={f.reason_code} />
-            ))}
           </div>
 
-          <DecisionBlock action={decision.action} advisoryMaxRung={advisoryMaxRung} caption={`decision · seq ${decision.decision_seq}`} />
-        </div>
-
-        <div className="foot">
-          model <b>{decision.model_bundle_version || "—"}</b> &nbsp; policy{" "}
-          <b>{decision.policy_version || "—"}</b> &nbsp; rules <b>{decision.rules_version || "—"}</b> &nbsp;
-          registry <b>{decision.signal_registry_version || "—"}</b>
-          <br />
-          degraded{" "}
-          <b className={degraded.length > 0 ? "w" : ""}>{degraded.length > 0 ? degraded.join(", ") : "none"}</b>
-          &nbsp;·&nbsp; is_control <b>{String(decision.is_control)}</b> &nbsp;·&nbsp; action_propensity{" "}
-          <b>{decision.action_propensity?.toFixed(3) ?? "—"}</b>
-          <br />
-          chain seq <b>{decision.chain_seq}</b> &nbsp;·&nbsp; prev_hash <b>{truncateHash(decision.prev_hash)}</b>{" "}
-          &nbsp;·&nbsp; hash <b className="u">{truncateHash(decision.hash)}</b>
-        </div>
-      </div>
-
-      <div className="panel">
-        <div className="lbl" style={{ marginBottom: 10 }}>
-          Feature vector ({featureIds.length})
-        </div>
-        <div style={{ maxHeight: 480, overflowY: "auto" }}>
-          <table className="dtable">
-            <thead>
-              <tr>
-                <th>feature_id</th>
-                <th style={{ textAlign: "right" }}>value</th>
-                <th>status</th>
-                <th>reason</th>
-                <th style={{ textAlign: "right" }}>staleness</th>
-              </tr>
-            </thead>
-            <tbody>
-              {featureIds.map((id) => {
-                const status = fv!.status[id];
-                const value = fv!.values[id];
-                const reason = fv!.reason[id];
-                const stale = fv!.staleness[id];
-                return (
-                  <tr key={id}>
-                    <td className="num">{id}</td>
-                    <td className="n num">{status === "CLEAR" || status === "FIRED" ? (value ?? "—") : "—"}</td>
-                    <td>
-                      <StateChip label={status} status={status} reason={reason} />
-                    </td>
-                    <td className="num">{reason ?? "—"}</td>
-                    <td className="n num">{stale !== undefined ? formatMs(stale * 1000) : "—"}</td>
+          <div className="card">
+            <div className="ch">
+              <h2>Feature vector</h2>
+              <span className="badge i">{featureIds.length}</span>
+            </div>
+            <div style={{ maxHeight: 460, overflowY: "auto" }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>feature_id</th>
+                    <th className="r">value</th>
+                    <th>status</th>
+                    <th>reason</th>
+                    <th className="r">staleness</th>
                   </tr>
-                );
-              })}
-              {featureIds.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ color: "var(--ink-300)" }}>
-                    no feature vector on this decision record
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                </thead>
+                <tbody>
+                  {featureIds.map((id) => {
+                    const status = fv!.status[id];
+                    const value = fv!.values[id];
+                    const reason = fv!.reason[id];
+                    const stale = fv!.staleness[id];
+                    return (
+                      <tr key={id}>
+                        <td className="mn">{id}</td>
+                        <td className="r mn">{status === "CLEAR" || status === "FIRED" ? (value ?? "—") : "—"}</td>
+                        <td>
+                          <StateChip label={status} status={status} reason={reason} />
+                        </td>
+                        <td className="mn">{reason ?? "—"}</td>
+                        <td className="r mn">{stale !== undefined ? formatMs(stale * 1000) : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                  {featureIds.length === 0 && (
+                    <tr>
+                      <td colSpan={5} style={{ color: "var(--ink4)" }}>
+                        no feature vector on this decision record
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
 
-      {transaction && (
-        <div className="panel" style={{ marginTop: 20 }}>
-          <div className="lbl" style={{ marginBottom: 10 }}>
-            Raw transaction — as persisted
-          </div>
-          <div className="mono" style={{ fontSize: 11, display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 20px" }}>
-            {Object.entries(transaction).map(([k, v]) => (
-              <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                <span style={{ color: "var(--ink-500)" }}>{k}</span>
-                <span className="num" style={{ textAlign: "right", wordBreak: "break-all" }}>
-                  {k.includes("account") ? truncateMid(String(v), 6, 6) : String(v)}
-                </span>
+          {transaction && (
+            <div className="card">
+              <div className="ch">
+                <h2>Raw transaction — as persisted</h2>
               </div>
-            ))}
-          </div>
-          {"remittance_info" in transaction && (
-            <div className="lbl" style={{ marginTop: 10, color: "var(--ink-300)" }}>
-              remittance_info is shown here as plain text for the investigator only — it is
-              attacker-controlled and is never forwarded to an LLM (CLAUDE.md non-negotiable #14).
+              <div
+                className="mn"
+                style={{ padding: "0 18px 16px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 20px" }}
+              >
+                {Object.entries(transaction).map(([k, v]) => (
+                  <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                    <span style={{ color: "var(--ink4)" }}>{k}</span>
+                    <span className="mn" style={{ textAlign: "right", wordBreak: "break-all", color: "var(--ink2)" }}>
+                      {k.includes("account") ? truncateMid(String(v), 6, 6) : String(v)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {"remittance_info" in transaction && (
+                <div style={{ padding: "0 18px 16px", color: "var(--ink4)", fontSize: 12 }}>
+                  remittance_info is shown here as plain text for the investigator only — it is
+                  attacker-controlled and is never forwarded to an LLM (CLAUDE.md non-negotiable #14).
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <DecisionBlock action={decision.action} advisoryMaxRung={advisoryMaxRung} caption={`seq ${decision.decision_seq}`} />
+
+          <div className="card">
+            <div className="ch">
+              <h2>Reproducibility</h2>
+            </div>
+            <div className="meta">
+              <div className="kv">
+                <span className="k">Model</span>
+                <span className="v mn">{decision.model_bundle_version || "—"}</span>
+              </div>
+              <div className="kv">
+                <span className="k">Policy</span>
+                <span className="v mn">{decision.policy_version || "—"}</span>
+              </div>
+              <div className="kv">
+                <span className="k">Rules</span>
+                <span className="v mn">{decision.rules_version || "—"}</span>
+              </div>
+              <div className="kv">
+                <span className="k">Registry</span>
+                <span className="v mn">{decision.signal_registry_version || "—"}</span>
+              </div>
+              <div className="kv">
+                <span className="k">Degraded</span>
+                <span className="v mn" style={{ color: degraded.length > 0 ? "var(--warn)" : "var(--ink)" }}>
+                  {degraded.length > 0 ? degraded.join(", ") : "none"}
+                </span>
+              </div>
+              <div className="kv">
+                <span className="k">is_control</span>
+                <span className="v mn">{String(decision.is_control)}</span>
+              </div>
+              <div className="kv">
+                <span className="k">Propensity</span>
+                <span className="v mn">{decision.action_propensity?.toFixed(3) ?? "—"}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <div className="ch">
+              <h2>Chain</h2>
+            </div>
+            <div className="meta">
+              <div className="kv">
+                <span className="k">Seq</span>
+                <span className="v mn">{decision.chain_seq}</span>
+              </div>
+              <div className="kv">
+                <span className="k">Prev hash</span>
+                <span className="v mn">{truncateHash(decision.prev_hash)}</span>
+              </div>
+              <div className="kv">
+                <span className="k">Hash</span>
+                <span className="v mn" style={{ color: "var(--indigo)" }}>
+                  {truncateHash(decision.hash)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

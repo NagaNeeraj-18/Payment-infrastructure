@@ -75,15 +75,17 @@ func GetLatestDecision(ctx context.Context, db *sql.DB, e2eID string) (*contract
 // console's Live Monitor with real history on page load, rather than leaving it empty until
 // the next decision happens to stream in after the tab connects.
 type LiveRow struct {
-	EndToEndID      string   `json:"end_to_end_id"`
-	DecidedAtMs     int64    `json:"decided_at_ms"`
-	DebtorAccount   string   `json:"debtor_account"`
-	CreditorAccount string   `json:"creditor_account"`
-	AmountMinor     int64    `json:"amount_minor"`
-	Rail            string   `json:"rail"`
-	Action          string   `json:"action"`
-	TotalMs         float64  `json:"total_ms"`
-	Degraded        []string `json:"degraded"`
+	EndToEndID       string   `json:"end_to_end_id"`
+	DecidedAtMs      int64    `json:"decided_at_ms"`
+	DebtorAccount    string   `json:"debtor_account"`
+	CreditorAccount  string   `json:"creditor_account"`
+	AmountMinor      int64    `json:"amount_minor"`
+	Rail             string   `json:"rail"`
+	Action           string   `json:"action"`
+	TotalMs          float64  `json:"total_ms"`
+	Degraded         []string `json:"degraded"`
+	NoveltyPValue    float64  `json:"novelty_p_value"`
+	NoveltyEvaluated bool     `json:"novelty_evaluated"`
 }
 
 // GetRecentLiveDecisions reads the most recent LIVE decisions back out of Postgres, newest
@@ -91,7 +93,8 @@ type LiveRow struct {
 func GetRecentLiveDecisions(ctx context.Context, db *sql.DB, limit int) ([]LiveRow, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT d.end_to_end_id, extract(epoch from d.decided_at)*1000, t.debtor_account,
-		       t.creditor_account, t.amount_minor, t.rail, d.action, d.total_ms, d.degraded
+		       t.creditor_account, t.amount_minor, t.rail, d.action, d.total_ms, d.degraded,
+		       d.findings
 		FROM decisions d
 		JOIN transactions t ON t.end_to_end_id = d.end_to_end_id
 		WHERE d.kind = 'LIVE'
@@ -107,12 +110,24 @@ func GetRecentLiveDecisions(ctx context.Context, db *sql.DB, limit int) ([]LiveR
 		var r LiveRow
 		var decidedAtMs float64
 		var degraded pqArray
+		var findingsJSON []byte
 		if err := rows.Scan(&r.EndToEndID, &decidedAtMs, &r.DebtorAccount, &r.CreditorAccount,
-			&r.AmountMinor, &r.Rail, &r.Action, &r.TotalMs, &degraded); err != nil {
+			&r.AmountMinor, &r.Rail, &r.Action, &r.TotalMs, &degraded, &findingsJSON); err != nil {
 			return nil, fmt.Errorf("persist: scan recent decision: %w", err)
 		}
 		r.DecidedAtMs = int64(decidedAtMs)
 		r.Degraded = []string(degraded)
+
+		var findings []contract.Finding
+		if err := json.Unmarshal(findingsJSON, &findings); err == nil {
+			for _, f := range findings {
+				if f.SignalID == "novelty" {
+					r.NoveltyPValue = f.Score
+					r.NoveltyEvaluated = f.Status != contract.StatusNotEvaluated
+					break
+				}
+			}
+		}
 		out = append(out, r)
 	}
 	return out, rows.Err()

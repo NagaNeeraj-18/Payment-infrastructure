@@ -57,16 +57,18 @@ export function Investigation({ timeMachine = false }: InvestigationProps) {
 
   return (
     <div>
-      <div className="top-bar">
-        <h1>{timeMachine ? "Time Machine" : "Investigation"}</h1>
-        <p>
-          {timeMachine
-            ? "Look up any past end_to_end_id and see exactly what was persisted — never recomputed. Same GET /v1/decisions/{id} as the live investigation view."
-            : "Paste an end_to_end_id, or click a row on Live Monitor, to open GET /v1/decisions/{id}."}
-        </p>
+      <div className="ph">
+        <div>
+          <h1>{timeMachine ? "Time Machine" : "Investigation"}</h1>
+          <p>
+            {timeMachine
+              ? "Look up any past end-to-end ID and see exactly what was persisted — never recomputed. Same GET /v1/decisions/{id} as live investigation."
+              : "Paste an end-to-end ID, or click a row on Live Monitor, to open GET /v1/decisions/{id}."}
+          </p>
+        </div>
       </div>
 
-      <form onSubmit={onSubmit} className="panel" style={{ marginBottom: 20, display: "flex", gap: 10 }}>
+      <form onSubmit={onSubmit} className="card" style={{ marginBottom: 14, display: "flex", gap: 10, padding: 14 }}>
         <input
           className="field"
           style={{ flex: 1 }}
@@ -74,13 +76,21 @@ export function Investigation({ timeMachine = false }: InvestigationProps) {
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />
-        <button type="submit" className="btn btn-primary">
+        <button type="submit" className="pill pri">
           Look up
         </button>
       </form>
 
-      {!idParam && <div className="lbl">No transaction selected.</div>}
-      {loading && <div className="lbl">Loading…</div>}
+      {!idParam && (
+        <div className="card" style={{ padding: 18, color: "var(--ink3)", fontSize: 13 }}>
+          No transaction selected.
+        </div>
+      )}
+      {loading && (
+        <div className="card" style={{ padding: 18, color: "var(--ink3)", fontSize: 13 }}>
+          Loading…
+        </div>
+      )}
       {error && (
         <div className="deg">
           GET /v1/decisions/{idParam} failed: {error}

@@ -334,10 +334,26 @@ func noveltyFinding(nr novelty.Result) contract.Finding {
 		status = contract.StatusFired
 		explanation = "unusual pattern: " + explanation
 	}
-	return contract.NewFinding("novelty", status, explanation)
+	f := contract.NewFinding("novelty", status, explanation)
+	f.Score = nr.PValue // exposes the real conformal p-value as a queryable number, not just
+	// text buried in the explanation — what the live Anomaly Detection screen reads.
+	return f
+}
+
+// noveltyFromFindings pulls the novelty signal's p-value back out of an already-computed
+// findings slice, for callers that only have the persisted/broadcast Decision (SSE payload,
+// recent-decisions hydration) rather than the live novelty.Result.
+func noveltyFromFindings(findings []contract.Finding) (pValue float64, evaluated bool) {
+	for _, f := range findings {
+		if f.SignalID == "novelty" {
+			return f.Score, f.Status != contract.StatusNotEvaluated
+		}
+	}
+	return 0, false
 }
 
 func liveMonitorRow(ev *contract.Event, d *contract.Decision) map[string]any {
+	pValue, evaluated := noveltyFromFindings(d.Findings)
 	return map[string]any{
 		"end_to_end_id": ev.EndToEndID,
 		"decided_at_ms": d.DecidedAtMs,
@@ -348,6 +364,8 @@ func liveMonitorRow(ev *contract.Event, d *contract.Decision) map[string]any {
 		"action": d.Action,
 		"total_ms": d.TotalMs,
 		"degraded": d.Degraded,
+		"novelty_p_value": pValue,
+		"novelty_evaluated": evaluated,
 	}
 }
 
