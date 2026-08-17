@@ -23,10 +23,19 @@ import (
 const (
 	maxCalibrationSize = 1500
 	kNeighbours        = 10
-	minCalibration     = 30
+	// A conformal p-value is only as trustworthy as the traffic it was calibrated on. Thirty
+	// points is enough to compute a number and nowhere near enough for that number to mean
+	// anything: early in a run, per-account velocity counters are still ramping from zero, so
+	// a reservoir of the first thirty payments describes a regime that no longer exists by
+	// the time anyone looks. Saying COLD_START for longer is the honest answer.
+	minCalibration     = 200
 	// Recomputing the calibration set's own nonconformity scores is O(m^2). It runs in the
 	// async lane, never on the scoring path, and only every refreshEvery observations.
-	refreshEvery = 150
+	// The reference set must track the traffic it is meant to describe. Refreshing rarely
+	// means comparing live payments against a stale snapshot, which under any upward drift
+	// makes ordinary traffic look progressively more novel until the detector flags most of
+	// it. O(m^2) in the async lane is affordable; a detector nobody can trust is not.
+	refreshEvery = 50
 	// alphaSampleCap bounds that O(m^2): the reference distribution is estimated from a
 	// bounded sample of the reservoir rather than all of it.
 	alphaSampleCap = 500
@@ -58,6 +67,15 @@ type Engine struct {
 	// distances) yields a p-value of roughly (n-k)/n for every input — near-constant, and
 	// therefore a detector that can never fire.
 	alphas       []float64
+
+	// ref is the calibration set the alphas were measured against, kept verbatim.
+	//
+	// A conformal p-value is only meaningful if the new point's nonconformity is measured
+	// the same way the calibration scores were. alphas are k-NN distances within a bounded
+	// SAMPLE of the reservoir; measuring a new point against the whole reservoir instead
+	// compares it to a denser cloud, so its k-th neighbour is systematically nearer and it
+	// looks more normal than it is. Holding the reference set makes both sides identical.
+	ref          []point
 	sinceRefresh int
 }
 
@@ -122,6 +140,7 @@ func (e *Engine) refreshLocked() {
 	}
 	sort.Float64s(alphas)
 	e.alphas = alphas
+	e.ref = sample
 }
 
 // Result is the novelty finding: a conformal p-value (small = unusual) plus the scaled k-NN
@@ -146,15 +165,17 @@ func (e *Engine) Evaluate(values map[string]float64) Result {
 	dims := e.dims
 	scale := e.scale
 	alphas := e.alphas
-	pts := make([]point, len(e.pts))
-	copy(pts, e.pts)
+	nPts := len(e.pts)
+	ref := make([]point, len(e.ref))
+	copy(ref, e.ref)
 	e.mu.Unlock()
 
-	if len(pts) < minCalibration || dims == nil || len(alphas) == 0 {
+	if nPts < minCalibration || dims == nil || len(alphas) == 0 || len(ref) == 0 {
 		return Result{Evaluated: false, Reason: "COLD_START — not enough recent traffic yet to say what normal looks like"}
 	}
 
-	alpha := kthDistance(values, dims, scale, pts, kNeighbours, -1)
+	// Measured against the same reference set the alphas came from — see Engine.ref.
+	alpha := kthDistance(values, dims, scale, ref, kNeighbours, -1)
 
 	idx := sort.SearchFloat64s(alphas, alpha)
 	ge := len(alphas) - idx

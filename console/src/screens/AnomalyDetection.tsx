@@ -6,8 +6,8 @@ import { useDecisionStream } from "../lib/useDecisionStream";
 
 const NOVEL_THRESHOLD = 0.05;
 const CHART_W = 720;
-const CHART_H = 220;
-const PAD = 28;
+const CHART_H = 260;
+const PAD = 34;
 
 /** Live anomaly detection: go/internal/novelty's real feature-space k-NN + conformal
  * p-value, computed on every decision (shadow only — never influences the action). This
@@ -27,9 +27,9 @@ export function AnomalyDetection() {
     const n = ordered.length;
     return ordered.map((r, i) => {
       const x = n === 1 ? PAD : PAD + (i / (n - 1)) * (CHART_W - 2 * PAD);
-      const anomaly = 1 - r.novelty_p_value; // higher = more anomalous, more intuitive on a chart
-      const y = CHART_H - PAD - anomaly * (CHART_H - 2 * PAD);
-      return { x, y, r, anomaly };
+      const p = r.novelty_p_value;
+      const y = CHART_H - PAD - p * (CHART_H - 2 * PAD);
+      return { x, y, r, p, novel: p < NOVEL_THRESHOLD };
     });
   }, [evaluated]);
 
@@ -105,9 +105,9 @@ export function AnomalyDetection() {
       <div className="sp1" style={{ marginBottom: 14 }}>
         <div className="card">
           <div className="ch">
-            <h2>Anomaly score over time</h2>
+            <h2>How unusual each payment was</h2>
             <div className="sp" />
-            <span className="sub">1 − conformal p-value, live</span>
+            <span className="sub">conformal p-value · lower means less like recent traffic</span>
           </div>
           <div style={{ padding: "4px 18px 16px" }}>
             {scatter.length === 0 ? (
@@ -117,29 +117,57 @@ export function AnomalyDetection() {
               </div>
             ) : (
               <svg viewBox={`0 0 ${CHART_W} ${CHART_H}`} style={{ width: "100%", height: "auto" }}>
-                <g stroke="var(--bd)">
-                  <line x1={PAD} y1={PAD} x2={CHART_W - PAD} y2={PAD} />
-                  <line
-                    x1={PAD}
-                    y1={CHART_H - PAD - (1 - NOVEL_THRESHOLD) * (CHART_H - 2 * PAD)}
-                    x2={CHART_W - PAD}
-                    y2={CHART_H - PAD - (1 - NOVEL_THRESHOLD) * (CHART_H - 2 * PAD)}
-                    strokeDasharray="4 4"
-                    stroke="var(--warn)"
-                  />
-                  <line x1={PAD} y1={CHART_H - PAD} x2={CHART_W - PAD} y2={CHART_H - PAD} />
-                </g>
-                <text x={CHART_W - PAD} y={CHART_H - PAD - (1 - NOVEL_THRESHOLD) * (CHART_H - 2 * PAD) - 4} fontSize="10" fill="var(--warn)" textAnchor="end">
-                  novel threshold
+                {/* The flagged band, drawn as a region rather than a line: anything inside it
+                    is as unusual as the least usual 5% of recent traffic. */}
+                <rect
+                  x={PAD}
+                  y={CHART_H - PAD - NOVEL_THRESHOLD * (CHART_H - 2 * PAD)}
+                  width={CHART_W - 2 * PAD}
+                  height={NOVEL_THRESHOLD * (CHART_H - 2 * PAD)}
+                  fill="var(--stop)"
+                  opacity="0.10"
+                />
+                {[0, 0.05, 0.25, 0.5, 1].map((t) => {
+                  const y = CHART_H - PAD - t * (CHART_H - 2 * PAD);
+                  return (
+                    <g key={t}>
+                      <line
+                        x1={PAD}
+                        y1={y}
+                        x2={CHART_W - PAD}
+                        y2={y}
+                        stroke={t === NOVEL_THRESHOLD ? "var(--stop)" : "var(--bd)"}
+                        strokeDasharray={t === NOVEL_THRESHOLD ? "5 4" : undefined}
+                      />
+                      <text
+                        x={PAD - 7}
+                        y={y + 4}
+                        fontSize="11"
+                        textAnchor="end"
+                        fill={t === NOVEL_THRESHOLD ? "var(--stop)" : "var(--ink4)"}
+                      >
+                        {t}
+                      </text>
+                    </g>
+                  );
+                })}
+                <text x={PAD} y={PAD - 12} fontSize="11" fill="var(--ink4)">
+                  usual
                 </text>
-                {scatter.map((p, i) => (
+                <text x={PAD} y={CHART_H - PAD + 20} fontSize="11" fill="var(--stop)">
+                  unusual — flagged below 0.05
+                </text>
+                <text x={CHART_W - PAD} y={CHART_H - PAD + 20} fontSize="11" fill="var(--ink4)" textAnchor="end">
+                  newest →
+                </text>
+                {scatter.map((pt, i) => (
                   <circle
                     key={i}
-                    cx={p.x}
-                    cy={p.y}
-                    r={p.anomaly >= 1 - NOVEL_THRESHOLD ? 4 : 2.5}
-                    fill={p.anomaly >= 1 - NOVEL_THRESHOLD ? "var(--warn)" : "var(--indigo)"}
-                    opacity={p.anomaly >= 1 - NOVEL_THRESHOLD ? 0.9 : 0.45}
+                    cx={pt.x}
+                    cy={pt.y}
+                    r={pt.novel ? 4 : 2.5}
+                    fill={pt.novel ? "var(--stop)" : "var(--indigo)"}
+                    opacity={pt.novel ? 0.95 : 0.4}
                   />
                 ))}
               </svg>
