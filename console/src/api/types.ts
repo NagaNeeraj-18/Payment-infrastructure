@@ -470,6 +470,8 @@ export interface CampaignProgress {
   running: boolean;
   started_ms: number;
   narrative: string;
+  value_at_risk_minor: number;
+  value_stopped_minor: number;
 }
 
 export interface SimStatus {

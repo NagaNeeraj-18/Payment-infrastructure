@@ -229,8 +229,7 @@ export function CommandCentre() {
             <span className="cc-attack-label">{campaign.label}</span>
             <div className="sp" />
             <span className="cc-attack-count">
-              {campaign.sent}/{campaign.total} sent · <b>{campaign.challenged}</b> stopped ·{" "}
-              <b>{campaign.allowed}</b> through
+              {campaign.sent}/{campaign.total} sent · <b>{campaign.challenged}</b> stopped
             </span>
             <button className="pill gh sm" onClick={() => api.simAttackStop()}>
               Abort
@@ -239,7 +238,32 @@ export function CommandCentre() {
           <div className="cc-attack-bar">
             <span style={{ width: `${(campaign.sent / Math.max(1, campaign.total)) * 100}%` }} />
           </div>
+          <div className="cc-attack-money">
+            <span className="cc-attack-money-v mny">
+              {formatMinorCompact(campaign.value_stopped_minor)} of{" "}
+              {formatMinorCompact(campaign.value_at_risk_minor)}
+            </span>
+            <span className="cc-attack-money-l">
+              of the money at risk stopped
+              {campaign.value_at_risk_minor > 0 && (
+                <b>
+                  {" "}
+                  ({Math.round((campaign.value_stopped_minor / campaign.value_at_risk_minor) * 100)}%)
+                </b>
+              )}
+            </span>
+          </div>
           <div className="cc-attack-narr">{campaign.narrative}</div>
+          {campaign.sent > 0 &&
+            campaign.challenged / campaign.sent < 0.5 &&
+            campaign.value_at_risk_minor > 0 &&
+            campaign.value_stopped_minor / campaign.value_at_risk_minor > 0.8 && (
+              <div className="cc-attack-econ">
+                Most of these payments were deliberately let through. They are trivial probes, and
+                challenging one costs more than the fraud it prevents — so the system spends the
+                customer's patience on the payment that carries the money, not on the noise.
+              </div>
+            )}
         </div>
       )}
 

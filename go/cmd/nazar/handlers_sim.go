@@ -41,6 +41,13 @@ type campaignProgress struct {
 	Running    bool   `json:"running"`
 	StartedMs  int64  `json:"started_ms"`
 	Narrative  string `json:"narrative"`
+	// Counting payments treats a Rs 2 credential probe and a Rs 5,000 cash-out as the same
+	// event, which is the exact mistake this system is built not to make: challenging the
+	// Rs 2 payment costs more than the fraud it prevents. A campaign of tiny probes with one
+	// large finale therefore shows a low payment-count rate and a high value rate, and the
+	// count alone reads as failure when the economics are working. Both are reported.
+	ValueAtRiskMinor     int64 `json:"value_at_risk_minor"`
+	ValueStoppedMinor    int64 `json:"value_stopped_minor"`
 }
 
 type simulator struct {
@@ -325,10 +332,12 @@ func (s *Server) runCampaign(ctx context.Context, spec campaignSpec) {
 		s.sim.mu.Lock()
 		if s.sim.campaign != nil {
 			s.sim.campaign.Sent = i + 1
+			s.sim.campaign.ValueAtRiskMinor += ev.InstructedAmountMinor
 			if d.Action == contract.ActionAllow || d.Action == contract.ActionAllowMonitor {
 				s.sim.campaign.Allowed++
 			} else {
 				s.sim.campaign.Challenged++
+				s.sim.campaign.ValueStoppedMinor += ev.InstructedAmountMinor
 			}
 		}
 		snapshot := *s.sim.campaign

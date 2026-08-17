@@ -815,3 +815,50 @@ input.field:focus { outline: 2px solid var(--indigo); outline-offset: 1px; }
 .xp-ask-input::placeholder { color: var(--ink4); }
 .xp-ask-hint { font-size: 14px; color: var(--ink3); line-height: 1.55; margin: 0; }
 .xp-ask-log .xp-ask-sugs { margin-top: 2px; }
+
+/* Value framing on the attack banner. A payment-count rate alone misrepresents a campaign
+   of cheap probes with one expensive finale. */
+.cc-attack-money { display: flex; align-items: baseline; gap: 9px; margin: 10px 0 6px; flex-wrap: wrap; }
+.cc-attack-money-v { font-size: 21px; font-weight: 650; color: var(--ink); letter-spacing: -.02em; }
+.cc-attack-money-l { font-size: 13px; color: var(--ink3); }
+.cc-attack-money-l b { color: var(--ok); font-weight: 650; }
+.cc-attack-econ { margin-top: 9px; padding: 10px 13px; border-radius: var(--r2);
+  background: var(--ok-w); color: var(--ink2); font-size: 13px; line-height: 1.55; }
+
+/* ── browsable pickers on the lookup screens ─────────────────────────────── */
+.rp { margin-top: 4px; }
+.rp-tabs { display: flex; gap: 6px; }
+.rp-tab { font-size: 12.5px; padding: 5px 12px; border-radius: 999px; cursor: pointer;
+  background: transparent; border: 1px solid var(--bd2); color: var(--ink3); }
+.rp-tab:hover { border-color: var(--ink4); color: var(--ink2); }
+.rp-tab.on { background: var(--indigo-w); border-color: var(--indigo); color: var(--indigo); font-weight: 600; }
+.rp-empty { padding: 22px 20px; color: var(--ink3); font-size: 14px; line-height: 1.6; }
+.rp-rows { display: flex; flex-direction: column; max-height: 62vh; overflow-y: auto; }
+.rp-row { display: grid; grid-template-columns: 84px minmax(180px, 1fr) minmax(140px, 1.4fr) 116px 96px;
+  align-items: center; gap: 14px; padding: 12px 20px; width: 100%; text-align: left;
+  background: var(--panel); border: 0; border-top: 1px solid var(--bd); cursor: pointer; }
+.rp-row:hover { background: var(--hover); }
+.rp-row.sel { background: var(--indigo-w); }
+.rp-time { font-size: 12.5px; color: var(--ink4); }
+.rp-parties { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 13px; }
+.rp-parties .mn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-arrow { color: var(--ink4); flex: none; }
+.rp-why { font-size: 13px; color: var(--ink2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-amt { font-size: 14px; text-align: right; color: var(--ink); }
+.rp-act { font-size: 12px; font-weight: 650; padding: 4px 10px; border-radius: var(--r3); text-align: center; }
+.rp-act.t-ok { background: var(--ok-w); color: var(--ok); }
+.rp-act.t-warn { background: var(--warn-w); color: var(--warn); }
+.rp-act.t-hold { background: var(--hold-w); color: var(--hold); }
+.rp-act.t-stop { background: var(--stop-w); color: var(--stop); }
+.rp-accts { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; padding: 18px 20px 20px; }
+.rp-acct { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; text-align: left;
+  background: var(--sunken); border: 1px solid var(--bd); border-radius: var(--r2); cursor: pointer; }
+.rp-acct:hover { border-color: var(--indigo); background: var(--indigo-w); }
+.rp-acct.sel { border-color: var(--indigo); background: var(--indigo-w); }
+.rp-acct.ring { border-color: var(--warn); }
+.rp-acct-id { font-size: 13px; color: var(--ink); }
+.rp-acct-n { font-size: 12px; color: var(--ink3); }
+@media (max-width: 1100px) {
+  .rp-row { grid-template-columns: 74px 1fr 104px 88px; }
+  .rp-why { display: none; }
+}

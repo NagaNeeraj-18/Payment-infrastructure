@@ -2,6 +2,7 @@ import { useState } from "react";
 import { api } from "../api/client";
 import type { GraphResponse } from "../api/types";
 import { truncateMid } from "../lib/format";
+import { AccountPicker } from "../components/RecentPicker";
 
 // Real bounds pulled from go/internal/graph/engine.go — used only to scale the .stage bar
 // widths (the numbers displayed are exact, unscaled API values). RingSizeCap=25 is the line
@@ -154,7 +155,24 @@ export function GraphView() {
         </>
       )}
 
-      {!data && !error && !loading && <div className="sub">No account looked up yet.</div>}
+      {!data && !error && !loading && (
+        <AccountPicker
+          onPick={(acct) => {
+            setInput(acct);
+            setLoading(true);
+            setError(null);
+            api
+              .graph(acct)
+              .then((res) => {
+                setData(res);
+                setAccount(acct);
+              })
+              .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+              .finally(() => setLoading(false));
+          }}
+          selected={account}
+        />
+      )}
     </div>
   );
 }

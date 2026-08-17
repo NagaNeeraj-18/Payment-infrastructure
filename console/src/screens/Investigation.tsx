@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { DecisionDetailResponse } from "../api/types";
 import { DecisionDetail } from "../components/DecisionDetail";
+import { RecentPicker } from "../components/RecentPicker";
 import { useAdvisoryMaxRung } from "../lib/usePolicy";
 
 interface InvestigationProps {
@@ -82,9 +83,10 @@ export function Investigation({ timeMachine = false }: InvestigationProps) {
       </form>
 
       {!idParam && (
-        <div className="card" style={{ padding: 18, color: "var(--ink3)", fontSize: 13 }}>
-          No transaction selected.
-        </div>
+        <RecentPicker
+          onPick={(id) => setParams({ id })}
+          title={timeMachine ? "Pick any decision from history" : "Or pick one from recent activity"}
+        />
       )}
       {loading && (
         <div className="card" style={{ padding: 18, color: "var(--ink3)", fontSize: 13 }}>
