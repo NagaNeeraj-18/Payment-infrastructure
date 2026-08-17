@@ -23,6 +23,7 @@ import (
 	"nazar/internal/fanout"
 	"nazar/internal/features"
 	"nazar/internal/graph"
+	"nazar/internal/narrate"
 	"nazar/internal/novelty"
 	"nazar/internal/obs"
 	"nazar/internal/persist"
@@ -85,9 +86,13 @@ func main() {
 	tokeniser := consortium.NewTokeniser([]byte(env("NAZAR_CONSORTIUM_PEPPER", "demo-pepper-epoch-1-not-for-production")))
 	consortiumRegistry := consortium.NewRegistry(db, tokeniser)
 
+	// The hot-swap slot the Policy Studio drives. Starts holding the approved on-disk
+	// bundle, so behaviour is identical until someone deliberately tunes it.
+	policyRef := decide.NewPolicyRef(policy)
+
 	engine := &decide.Engine{
 		Policy: policy, Rules: rulesEngine, Scorer: scorer, Calibrator: calibrator,
-		Prevalence: prevalence, Blocklist: blocklist,
+		Prevalence: prevalence, Blocklist: blocklist, Live: policyRef,
 		ModelBundleVersion: scorer.Meta().BundleVersion, PolicyVersion: policy.Version,
 		RulesVersion: rulesEngine.Version, SignalRegistryVersion: "2026-08-14.001",
 	}
@@ -132,7 +137,10 @@ func main() {
 		blocklist: blocklist, health: depHealth, graph: graphEngine, novelty: noveltyEngine,
 		consortium: consortiumRegistry,
 		policy: policy, redisContainer: env("NAZAR_REDIS_CONTAINER", "nazar-redis"),
+		sim: newSimulator(), narrator: narrate.FromEnv(),
+		policyRef: policyRef, basePolicy: policy,
 	}
+	log.Printf("nazar: analyst narrator = %+v", srv.narrator.Meta())
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

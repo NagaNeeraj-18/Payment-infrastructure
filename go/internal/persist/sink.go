@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 
 	"nazar/internal/contract"
 )
@@ -67,7 +68,19 @@ func (s *PostgresSink) Emit(ctx context.Context, d *contract.Decision) error {
 	if err != nil {
 		return fmt.Errorf("persist: insert decision: %w", err)
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	// Alert emission happens strictly after the decision row is durably committed — the
+	// alerts table's FK requires the decision to already exist, and this is the one place
+	// that's guaranteed true without a race against the async shipper.
+	if ShouldAlert(d.Action) {
+		if err := EmitAlert(ctx, s.db, d); err != nil {
+			log.Printf("persist: alert emission failed for %s (decision itself is safely persisted): %v", d.EndToEndID, err)
+		}
+	}
+	return nil
 }
 
 // EmitTransaction writes the canonical event to the transactions table (docs/02 §7).

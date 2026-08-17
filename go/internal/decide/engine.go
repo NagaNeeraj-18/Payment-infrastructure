@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
-	"math"
 
 	"nazar/internal/contract"
 	"nazar/internal/rules"
@@ -21,10 +20,57 @@ type Engine struct {
 	Prevalence  *PrevalenceCorrector
 	Blocklist   *Blocklist
 
+	// Live is an optional hot-swap slot (live_policy.go). When set it overrides Policy for
+	// the duration of one decision. Nil in every test — the struct literal in
+	// test/invariants/testengine.go keeps working unchanged.
+	Live *PolicyRef
+
 	ModelBundleVersion    string
 	PolicyVersion         string
 	RulesVersion          string
 	SignalRegistryVersion string
+}
+
+// snapshot returns an Engine whose Policy is pinned for the lifetime of one decision. The
+// live policy is read exactly once here, so a swap landing mid-decision can never split a
+// single decision across two policies — and the policy_version stamped on the result is
+// always the one that actually produced it.
+func (e *Engine) snapshot() *Engine {
+	live := e.Live.Load()
+	if live == nil || live == e.Policy {
+		return e
+	}
+	cp := *e
+	cp.Policy = live
+	cp.PolicyVersion = live.Version
+	return &cp
+}
+
+// EvaluateCost exposes the expected-cost minimisation (stage 4) for counterfactual replay:
+// given a fraud probability, rail and amount, which action is cost-minimal under this
+// engine's current policy, and what are the expected loss and total cost. Replay calls the
+// exact function the live path uses — it is not a reimplementation that can drift.
+func (e *Engine) EvaluateCost(pFraud float64, rail contract.Rail, amountMinor int64) (contract.Action, int64, int64) {
+	action, loss, cost := e.snapshot().minimiseCost(pFraud, rail, amountMinor)
+	return action, *loss, *cost
+}
+
+// RaiseTo returns whichever of the two actions sits higher on the ladder. Policy rails may
+// only ever raise friction (D7); replay needs the same floor logic the live path uses.
+func RaiseTo(action, floor contract.Action) contract.Action {
+	if contract.LadderIndex(floor) > contract.LadderIndex(action) {
+		return floor
+	}
+	return action
+}
+
+// LivePolicy returns the policy currently in force — the hot-swapped one if present,
+// otherwise the statically configured bundle.
+func (e *Engine) LivePolicy() *Policy {
+	if live := e.Live.Load(); live != nil {
+		return live
+	}
+	return e.Policy
 }
 
 // Input bundles everything Decide needs beyond the engine's own configuration.
@@ -52,6 +98,7 @@ type Advisory struct {
 // produced along the way (rule findings, the model finding, and NOT_EVALUATED placeholders
 // for any signal that did not run — D5).
 func (e *Engine) Decide(ctx context.Context, in *Input) (*contract.Decision, []contract.Finding) {
+	e = e.snapshot() // pin the policy for this decision (live_policy.go)
 	ev, pb, fv := in.Event, in.Profile, in.Features
 	var findings []contract.Finding
 	var reasonCodes []string
@@ -126,7 +173,7 @@ func (e *Engine) Decide(ctx context.Context, in *Input) (*contract.Decision, []c
 	baseAction := contract.ActionAllow
 	var expLoss, expCost *int64
 	if pAdjusted != nil {
-		baseAction, expLoss, expCost = e.minimiseCost(*pAdjusted, ev)
+		baseAction, expLoss, expCost = e.minimiseCost(*pAdjusted, ev.Rail, ev.InstructedAmountMinor)
 	}
 
 	// ── Stage 5: policy rails (may only raise friction — D7) ────────────────────
@@ -183,44 +230,6 @@ func (e *Engine) trustedPair(pb *contract.ProfileBundle, ev *contract.Event, rin
 		return false // VPA/account repoint guard
 	}
 	return true
-}
-
-func (e *Engine) minimiseCost(pFraud float64, ev *contract.Event) (contract.Action, *int64, *int64) {
-	lgf := e.Policy.Economics.LossGivenFraud[string(ev.Rail)]
-	amount := float64(ev.InstructedAmountMinor)
-
-	candidates := []contract.Action{contract.ActionAllow, contract.ActionStepUp, contract.ActionStepUpInterstitial, contract.ActionHold}
-	bestAction := contract.ActionAllow
-	bestCost := math.MaxFloat64
-	var bestLoss float64
-
-	for _, a := range candidates {
-		key := economicsKey(a)
-		stop := e.Policy.Economics.StopProb[key]
-		friction := float64(e.Policy.Economics.FrictionCostMinor[key])
-		abandon := e.Policy.Economics.AbandonProb[key]
-
-		fraudLoss := pFraud * amount * lgf * (1 - stop)
-		lostBusiness := (1 - pFraud) * abandon * float64(e.Policy.Economics.MarginMinor)
-		cost := fraudLoss + friction + lostBusiness
-
-		if cost < bestCost {
-			bestCost = cost
-			bestAction = a
-			bestLoss = fraudLoss
-		}
-	}
-
-	// ALLOW_MONITOR: operationally distinct from ALLOW (flagged for async review) but
-	// cost-identical, so it's a tie-break rather than a cost-argmin outcome.
-	const monitorThreshold = 0.01
-	if bestAction == contract.ActionAllow && pFraud >= monitorThreshold {
-		bestAction = contract.ActionAllowMonitor
-	}
-
-	loss := int64(bestLoss)
-	cost := int64(bestCost)
-	return bestAction, &loss, &cost
 }
 
 func economicsKey(a contract.Action) string {

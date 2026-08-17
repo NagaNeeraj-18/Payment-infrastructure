@@ -45,6 +45,21 @@ const ICONS: Record<string, ReactNode> = {
       <path d="M11 18h2" />
     </>
   ),
+  anom: (
+    <>
+      <circle cx="6" cy="18" r="2" />
+      <circle cx="12" cy="6" r="2" />
+      <circle cx="18" cy="15" r="2" />
+      <circle cx="10" cy="17" r="1.4" />
+      <path d="M12 8v6M14.3 14.8l2-1.2" strokeDasharray="2 2" />
+    </>
+  ),
+  alert: (
+    <>
+      <path d="M12 3l9 17H3z" />
+      <path d="M12 10v4M12 17h.01" />
+    </>
+  ),
 };
 
 function NavIcon({ id }: { id: string }) {
@@ -59,7 +74,10 @@ const GROUPS: { label: string; items: { to: string; id: string; label: string }[
   {
     label: "Operate",
     items: [
-      { to: "/", id: "live", label: "Live Monitor" },
+      { to: "/", id: "live", label: "Command Centre" },
+      { to: "/feed", id: "live", label: "Live Monitor" },
+      { to: "/anomaly", id: "anom", label: "Anomaly Detection" },
+      { to: "/alerts", id: "alert", label: "Alerts" },
       { to: "/investigate", id: "inv", label: "Investigation" },
       { to: "/resilience", id: "res", label: "Resilience" },
       { to: "/audit", id: "aud", label: "Audit Chain" },
@@ -76,6 +94,8 @@ const GROUPS: { label: string; items: { to: string; id: string; label: string }[
   {
     label: "Govern",
     items: [
+      { to: "/policy-studio", id: "cal", label: "Policy Studio" },
+      { to: "/model", id: "tm", label: "Model Evidence" },
       { to: "/calibration", id: "cal", label: "Calibration" },
       { to: "/latency", id: "lat", label: "Latency" },
     ],

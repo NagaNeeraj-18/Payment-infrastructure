@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"sync"
 
 	"github.com/redis/go-redis/v9"
 
@@ -9,6 +10,7 @@ import (
 	"nazar/internal/decide"
 	"nazar/internal/fanout"
 	"nazar/internal/graph"
+	"nazar/internal/narrate"
 	"nazar/internal/novelty"
 	"nazar/internal/obs"
 	"nazar/internal/persist"
@@ -34,6 +36,15 @@ type Server struct {
 	novelty      *novelty.Engine
 	consortium   *consortium.Registry
 	policy       *decide.Policy
+
+	// Live-demo surfaces (all off the scoring path).
+	sim        *simulator      // ambient traffic + attack campaigns
+	narrator   narrate.Narrator // analyst write-ups, on demand only
+	policyRef  *decide.PolicyRef // hot-swap slot the Policy Studio drives
+	basePolicy *decide.Policy    // the approved on-disk bundle, for reset
+
+	judgeMu      sync.Mutex
+	judgeSession *judgeSessionResponse // most recent QR session, so the console can follow it
 
 	redisContainer string
 }

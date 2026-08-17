@@ -1,15 +1,17 @@
-// Package novelty implements the P0 novelty signal (docs/00 §6, docs/06 Milestone 6):
-// k-NN distance in feature space plus a conformal p-value. Ships in `shadow` — it may never
-// BLOCK, and D5's four-state status applies to it like every other signal.
+// Package novelty implements the unsupervised detector (docs/00 §6, docs/06 Milestone 6):
+// k-NN distance in feature space turned into a conformal p-value. It ships in `shadow` — it
+// may never BLOCK — and D5's four-state status applies to it like every other signal.
 //
-// P0 substitution, stated honestly: docs/00 §6 specifies "leaf-space kNN" (embedding a
-// transaction by which leaf of the trained GBM it lands in per tree — a representation the
-// model already computes for free). The `leaves` inference library this build uses for
-// scoring (go/internal/scoring) does not expose per-tree leaf indices in its public API, and
-// building a from-scratch LightGBM leaf-index walker was judged not worth the time against
-// docs/06's "thinnest thing that demonstrates the claim" rule. This uses the raw numeric
-// feature vector as the embedding space instead. The conformal-p-value mechanism — the part
-// that actually matters for calibrated "how unusual is this" — is real and unchanged.
+// Why it matters disproportionately: this is the only detector in the system that needs no
+// fraud labels at all. It learns the shape of ordinary traffic and reports how unusual a
+// payment is against that, so an attack pattern nobody has labelled yet is still unusual on
+// the day it first appears. The supervised model cannot do that by construction.
+//
+// P0 substitution, stated honestly: docs/00 §6 specifies leaf-space kNN (embedding a
+// transaction by which leaf of the trained GBM it lands in per tree). The `leaves` inference
+// library used for scoring does not expose per-tree leaf indices, so this uses the robustly
+// scaled numeric feature vector as the embedding space instead. The conformal mechanism —
+// the part that makes "how unusual is this" a calibrated number rather than a hunch — is real.
 package novelty
 
 import (
@@ -19,31 +21,51 @@ import (
 )
 
 const (
-	maxCalibrationSize = 2000
+	maxCalibrationSize = 1500
 	kNeighbours        = 10
+	minCalibration     = 30
+	// Recomputing the calibration set's own nonconformity scores is O(m^2). It runs in the
+	// async lane, never on the scoring path, and only every refreshEvery observations.
+	refreshEvery = 150
+	// alphaSampleCap bounds that O(m^2): the reference distribution is estimated from a
+	// bounded sample of the reservoir rather than all of it.
+	alphaSampleCap = 500
 )
 
 type point struct {
 	values map[string]float64
 }
 
-// Engine holds a bounded reservoir of past (non-fraud-labelled-yet) feature vectors as the
-// conformal calibration set, per docs/03 (novelty ships in shadow; it learns the shape of
-// "normal" from traffic, not from labels).
+// Engine holds a bounded reservoir of recent feature vectors as the conformal calibration
+// set, plus the cached reference distribution derived from it.
 type Engine struct {
-	mu    sync.Mutex
-	pts   []point
-	next  int
-	dims  []string // fixed dimension order, set on first Observe
+	mu   sync.Mutex
+	pts  []point
+	next int
+	dims []string
+
+	// scale is a per-dimension robust spread (IQR-based) used to normalise distances.
+	// Without it, Euclidean distance is dominated entirely by whichever feature happens to
+	// be denominated in paise, and "unusual" degenerates into "large amount".
+	scale map[string]float64
+
+	// alphas is the sorted nonconformity distribution of the calibration set itself: for
+	// each sampled calibration point, its own distance to its k-th nearest neighbour among
+	// the others. A new point's p-value is its rank against this distribution.
+	//
+	// This is the part that has to be right. Comparing a new point's k-NN distance against
+	// the raw distances to every calibration point (rather than against their own k-NN
+	// distances) yields a p-value of roughly (n-k)/n for every input — near-constant, and
+	// therefore a detector that can never fire.
+	alphas       []float64
+	sinceRefresh int
 }
 
-func NewEngine() *Engine {
-	return &Engine{}
-}
+func NewEngine() *Engine { return &Engine{} }
 
-// Observe adds a scored transaction's feature vector to the calibration reservoir. Call
-// this from the async lane for every LIVE decision (not just novel ones) so the reservoir
-// reflects the traffic distribution, not the alerts it produces.
+// Observe adds a scored transaction's feature vector to the calibration reservoir. Called
+// from the async lane for every LIVE decision — not just flagged ones — so the reservoir
+// reflects the traffic distribution rather than the alerts it produced.
 func (e *Engine) Observe(values map[string]float64, dims []string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -57,76 +79,162 @@ func (e *Engine) Observe(values map[string]float64, dims []string) {
 		e.pts[e.next] = p
 		e.next = (e.next + 1) % maxCalibrationSize
 	}
+	e.sinceRefresh++
+	if len(e.pts) >= minCalibration && (e.alphas == nil || e.sinceRefresh >= refreshEvery) {
+		e.refreshLocked()
+		e.sinceRefresh = 0
+	}
 }
 
-// Result is the novelty finding: a conformal p-value (small = unusual) plus the raw kNN
-// distance it was derived from, for the explanation.
+// refreshLocked recomputes the per-dimension scale and the reference nonconformity
+// distribution. Caller must hold e.mu.
+func (e *Engine) refreshLocked() {
+	// 1. Robust per-dimension spread, so every feature contributes comparably.
+	e.scale = make(map[string]float64, len(e.dims))
+	col := make([]float64, 0, len(e.pts))
+	for _, d := range e.dims {
+		col = col[:0]
+		for _, p := range e.pts {
+			if v, ok := p.values[d]; ok && !math.IsNaN(v) {
+				col = append(col, v)
+			}
+		}
+		e.scale[d] = robustSpread(col)
+	}
+
+	// 2. Reference distribution: each sampled point's own k-NN distance to the others.
+	sample := e.pts
+	if len(sample) > alphaSampleCap {
+		// Deterministic stride sample — no RNG, so behaviour stays reproducible.
+		stride := len(sample) / alphaSampleCap
+		if stride < 1 {
+			stride = 1
+		}
+		s := make([]point, 0, alphaSampleCap)
+		for i := 0; i < len(sample) && len(s) < alphaSampleCap; i += stride {
+			s = append(s, sample[i])
+		}
+		sample = s
+	}
+	alphas := make([]float64, 0, len(sample))
+	for i := range sample {
+		alphas = append(alphas, kthDistance(sample[i].values, e.dims, e.scale, sample, kNeighbours, i))
+	}
+	sort.Float64s(alphas)
+	e.alphas = alphas
+}
+
+// Result is the novelty finding: a conformal p-value (small = unusual) plus the scaled k-NN
+// distance it came from, for the explanation.
 type Result struct {
-	Evaluated  bool
-	PValue     float64
+	Evaluated   bool
+	PValue      float64
 	KNNDistance float64
-	Reason     string
+	Reason      string
 }
 
-// Evaluate computes the conformal p-value for one feature vector against the current
-// reservoir: p = (count of calibration points with nonconformity >= this point's + 1) / (n+1).
-// Standard split-conformal construction — small p-value means "as unusual as only a small
-// fraction of what we've seen", which is the honest meaning of "novel" here.
+// Evaluate computes the split-conformal p-value for one feature vector:
+//
+//	p = (#{calibration points at least as nonconforming as this one} + 1) / (n + 1)
+//
+// where nonconformity is distance to the k-th nearest neighbour, measured in robustly scaled
+// feature space. p is approximately uniform on ordinary traffic and small for genuinely
+// unusual traffic — which is what makes "only 2% of recent payments look this unusual" a
+// statement with a defined meaning.
 func (e *Engine) Evaluate(values map[string]float64) Result {
 	e.mu.Lock()
 	dims := e.dims
+	scale := e.scale
+	alphas := e.alphas
 	pts := make([]point, len(e.pts))
 	copy(pts, e.pts)
 	e.mu.Unlock()
 
-	if len(pts) < 30 || dims == nil {
-		return Result{Evaluated: false, Reason: "COLD_START — calibration reservoir too small"}
+	if len(pts) < minCalibration || dims == nil || len(alphas) == 0 {
+		return Result{Evaluated: false, Reason: "COLD_START — not enough recent traffic yet to say what normal looks like"}
 	}
 
-	target := knnDistance(values, dims, pts, kNeighbours)
+	alpha := kthDistance(values, dims, scale, pts, kNeighbours, -1)
 
-	// nonconformity of each calibration point = its own kNN distance to the REST of the set
-	// would be the textbook construction; at P0 we approximate with distance-to-target's
-	// neighbourhood, which is cheaper and still gives a monotone, real p-value.
-	ge := 1 // the target itself, per the +1 in the standard formula
-	for _, p := range pts {
-		d := euclidean(values, p.values, dims)
-		if d >= target {
-			ge++
-		}
-	}
-	pValue := float64(ge) / float64(len(pts)+1)
+	idx := sort.SearchFloat64s(alphas, alpha)
+	ge := len(alphas) - idx
+	pValue := float64(ge+1) / float64(len(alphas)+1)
 
-	return Result{Evaluated: true, PValue: pValue, KNNDistance: target}
+	return Result{Evaluated: true, PValue: pValue, KNNDistance: alpha}
 }
 
-func knnDistance(target map[string]float64, dims []string, pts []point, k int) float64 {
+// kthDistance returns the distance from target to its k-th nearest neighbour among pts,
+// skipping index `skip` (use -1 to skip nothing) so a calibration point is never counted as
+// its own nearest neighbour.
+func kthDistance(target map[string]float64, dims []string, scale map[string]float64,
+	pts []point, k int, skip int) float64 {
 	dists := make([]float64, 0, len(pts))
-	for _, p := range pts {
-		dists = append(dists, euclidean(target, p.values, dims))
+	for i, p := range pts {
+		if i == skip {
+			continue
+		}
+		dists = append(dists, scaledEuclidean(target, p.values, dims, scale))
+	}
+	if len(dists) == 0 {
+		return 0
 	}
 	sort.Float64s(dists)
 	if k > len(dists) {
 		k = len(dists)
 	}
-	if k == 0 {
+	if k < 1 {
 		return 0
 	}
 	return dists[k-1]
 }
 
-func euclidean(a, b map[string]float64, dims []string) float64 {
+func scaledEuclidean(a, b map[string]float64, dims []string, scale map[string]float64) float64 {
 	var sum float64
 	for _, d := range dims {
 		av, aok := a[d]
 		bv, bok := b[d]
 		if !aok || !bok || math.IsNaN(av) || math.IsNaN(bv) {
-			continue
+			continue // a dimension missing on either side contributes nothing, never a zero
 		}
-		diff := av - bv
+		s := 1.0
+		if scale != nil {
+			if v, ok := scale[d]; ok && v > 0 {
+				s = v
+			}
+		}
+		diff := (av - bv) / s
 		sum += diff * diff
 	}
 	return math.Sqrt(sum)
+}
+
+// robustSpread returns an IQR-based scale, falling back to standard deviation and then to 1.
+// Robust rather than standard deviation because the reservoir legitimately contains
+// outliers, and one large payment should not flatten a whole dimension.
+func robustSpread(col []float64) float64 {
+	if len(col) < 4 {
+		return 1
+	}
+	s := append([]float64(nil), col...)
+	sort.Float64s(s)
+	q1 := s[len(s)/4]
+	q3 := s[(3*len(s))/4]
+	if iqr := q3 - q1; iqr > 1e-9 {
+		return iqr
+	}
+	var mean float64
+	for _, v := range s {
+		mean += v
+	}
+	mean /= float64(len(s))
+	var varsum float64
+	for _, v := range s {
+		varsum += (v - mean) * (v - mean)
+	}
+	if sd := math.Sqrt(varsum / float64(len(s))); sd > 1e-9 {
+		return sd
+	}
+	return 1
 }
 
 func copyMap(m map[string]float64) map[string]float64 {

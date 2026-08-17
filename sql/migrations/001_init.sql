@@ -174,8 +174,12 @@ CREATE TABLE IF NOT EXISTS alerts (
   decided_at    TIMESTAMPTZ NOT NULL,
   raised_at     TIMESTAMPTZ NOT NULL,
   severity      TEXT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'open',   -- open | resolved
+  resolved_at   TIMESTAMPTZ,
+  resolved_by   TEXT,
   FOREIGN KEY (end_to_end_id, decision_seq, decided_at) REFERENCES decisions
 );
+CREATE INDEX IF NOT EXISTS alerts_open_idx ON alerts (raised_at DESC) WHERE status = 'open';
 
 CREATE TABLE IF NOT EXISTS dispositions (
   id         BIGSERIAL PRIMARY KEY,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os/exec"
@@ -45,6 +46,34 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/consortium/lookup/{account}", s.handleConsortiumLookup)
 	mux.HandleFunc("GET /v1/federation/wire/{id}", s.handleFederationWire)
 	mux.HandleFunc("POST /v1/judge/session", s.handleJudgeSession)
+	mux.HandleFunc("GET /v1/judge/session", s.handleJudgeSessionActive)
+	mux.HandleFunc("GET /v1/alerts", s.handleListAlerts)
+	mux.HandleFunc("POST /v1/alerts/{id}/resolve", s.handleResolveAlert)
+
+	// Explanation, proof, and the live-demo surfaces. None of these sit on the scoring path.
+	mux.HandleFunc("GET /v1/decisions/{id}/explain", s.handleExplain)
+	mux.HandleFunc("POST /v1/decisions/{id}/narrate", s.handleNarrate)
+	mux.HandleFunc("GET /v1/sim/status", s.handleSimStatus)
+	mux.HandleFunc("POST /v1/sim/traffic", s.handleSimTraffic)
+	mux.HandleFunc("POST /v1/sim/attack/stop", s.handleSimAttackStop)
+	mux.HandleFunc("POST /v1/sim/attack/{kind}", s.handleSimAttack)
+	mux.HandleFunc("GET /v1/policy/live", s.handlePolicyLive)
+	mux.HandleFunc("POST /v1/policy/tune", s.handlePolicyTune)
+	mux.HandleFunc("POST /v1/policy/reset", s.handlePolicyReset)
+	mux.HandleFunc("GET /v1/model/metrics", s.handleModelMetrics)
+	mux.HandleFunc("GET /v1/model/coverage", s.handleModelCoverage)
+}
+
+// decodeBody decodes an optional JSON body, treating an empty body as an empty object so
+// callers may POST with no payload at all.
+func decodeBody(r *http.Request, v any) error {
+	if r.Body == nil {
+		return nil
+	}
+	if err := json.NewDecoder(r.Body).Decode(v); err != nil && err != io.EOF {
+		return err
+	}
+	return nil
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
@@ -354,7 +383,7 @@ func noveltyFromFindings(findings []contract.Finding) (pValue float64, evaluated
 
 func liveMonitorRow(ev *contract.Event, d *contract.Decision) map[string]any {
 	pValue, evaluated := noveltyFromFindings(d.Findings)
-	return map[string]any{
+	row := map[string]any{
 		"end_to_end_id": ev.EndToEndID,
 		"decided_at_ms": d.DecidedAtMs,
 		"debtor_account": ev.DebtorAccount,
@@ -366,7 +395,13 @@ func liveMonitorRow(ev *contract.Event, d *contract.Decision) map[string]any {
 		"degraded": d.Degraded,
 		"novelty_p_value": pValue,
 		"novelty_evaluated": evaluated,
+		// Carried on the stream so the console can show risk and the leading reason as rows
+		// arrive, without a follow-up fetch per row.
+		"p_prevalence_adj": d.PPrevalenceAdj,
+		"top_reason":       contract.TopReason(d.Findings, d.Action),
+		"source":           contract.SourceFromID(ev.EndToEndID),
 	}
+	return row
 }
 
 func sortedKeys(m map[string]float64) []string {

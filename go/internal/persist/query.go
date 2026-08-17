@@ -86,6 +86,11 @@ type LiveRow struct {
 	Degraded         []string `json:"degraded"`
 	NoveltyPValue    float64  `json:"novelty_p_value"`
 	NoveltyEvaluated bool     `json:"novelty_evaluated"`
+	// Same three summary fields the live SSE row carries, so a tab hydrated from history
+	// and a tab watching the live tail render identically.
+	PAdjusted *float64 `json:"p_prevalence_adj"`
+	TopReason string   `json:"top_reason"`
+	Source    string   `json:"source"`
 }
 
 // GetRecentLiveDecisions reads the most recent LIVE decisions back out of Postgres, newest
@@ -94,7 +99,7 @@ func GetRecentLiveDecisions(ctx context.Context, db *sql.DB, limit int) ([]LiveR
 	rows, err := db.QueryContext(ctx, `
 		SELECT d.end_to_end_id, extract(epoch from d.decided_at)*1000, t.debtor_account,
 		       t.creditor_account, t.amount_minor, t.rail, d.action, d.total_ms, d.degraded,
-		       d.findings
+		       d.findings, d.p_prevalence_adj
 		FROM decisions d
 		JOIN transactions t ON t.end_to_end_id = d.end_to_end_id
 		WHERE d.kind = 'LIVE'
@@ -112,7 +117,7 @@ func GetRecentLiveDecisions(ctx context.Context, db *sql.DB, limit int) ([]LiveR
 		var degraded pqArray
 		var findingsJSON []byte
 		if err := rows.Scan(&r.EndToEndID, &decidedAtMs, &r.DebtorAccount, &r.CreditorAccount,
-			&r.AmountMinor, &r.Rail, &r.Action, &r.TotalMs, &degraded, &findingsJSON); err != nil {
+			&r.AmountMinor, &r.Rail, &r.Action, &r.TotalMs, &degraded, &findingsJSON, &r.PAdjusted); err != nil {
 			return nil, fmt.Errorf("persist: scan recent decision: %w", err)
 		}
 		r.DecidedAtMs = int64(decidedAtMs)
@@ -128,6 +133,8 @@ func GetRecentLiveDecisions(ctx context.Context, db *sql.DB, limit int) ([]LiveR
 				}
 			}
 		}
+		r.TopReason = contract.TopReason(findings, contract.Action(r.Action))
+		r.Source = contract.SourceFromID(r.EndToEndID)
 		out = append(out, r)
 	}
 	return out, rows.Err()

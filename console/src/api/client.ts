@@ -1,6 +1,15 @@
 // Thin fetch client for the real Nazar Go backend. No mocking, no fallback data — every
 // function either resolves with real backend JSON or throws, and callers render the error.
 import type {
+  AlertsResponse,
+  ExplainResponse,
+  LivePolicyResponse,
+  CoverageResponse,
+  ModelMetricsResponse,
+  NarrateResponse,
+  PolicyTuneRequest,
+  PolicyTuneResponse,
+  SimStatus,
   AuditVerifyResponse,
   CalibrationResponse,
   ChaosResponse,
@@ -65,5 +74,25 @@ export const api = {
   recentDecisions: (limit = 100) =>
     getJSON<RecentDecisionsResponse>(`/v1/decisions/recent?limit=${limit}`),
   judgeSession: () => postJSON<JudgeSessionResponse>("/v1/judge/session"),
+  judgeSessionActive: () => getJSON<{ session: JudgeSessionResponse | null }>("/v1/judge/session"),
+  alerts: (status: "open" | "resolved" | "all" = "open", limit = 200) =>
+    getJSON<AlertsResponse>(`/v1/alerts?status=${status}&limit=${limit}`),
+  resolveAlert: (id: number) => postJSON<{ status: string }>(`/v1/alerts/${id}/resolve`, { resolved_by: "operator" }),
+  // Explanation & proof
+  explain: (id: string) => getJSON<ExplainResponse>(`/v1/decisions/${encodeURIComponent(id)}/explain`),
+  narrate: (id: string) => postJSON<NarrateResponse>(`/v1/decisions/${encodeURIComponent(id)}/narrate`),
+  // Live traffic & attack campaigns
+  simStatus: () => getJSON<SimStatus>("/v1/sim/status"),
+  simTraffic: (action: "start" | "stop", tps?: number) =>
+    postJSON<{ status: string; tps?: number }>("/v1/sim/traffic", { action, tps }),
+  simAttack: (kind: string) => postJSON<{ status: string }>(`/v1/sim/attack/${kind}`),
+  simAttackStop: () => postJSON<{ status: string }>("/v1/sim/attack/stop"),
+  // Policy studio
+  livePolicy: () => getJSON<LivePolicyResponse>("/v1/policy/live"),
+  tunePolicy: (req: PolicyTuneRequest) => postJSON<PolicyTuneResponse>("/v1/policy/tune", req),
+  resetPolicy: () => postJSON<{ status: string; policy_version: string }>("/v1/policy/reset"),
+  // Model evidence
+  modelMetrics: () => getJSON<ModelMetricsResponse>("/v1/model/metrics"),
+  modelCoverage: () => getJSON<CoverageResponse>("/v1/model/coverage"),
   streamUrl: () => `${API_BASE}/v1/stream`,
 };

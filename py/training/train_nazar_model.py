@@ -38,7 +38,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 from features import FEATURE_IDS, FeatureStream  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DATA_DIR = REPO_ROOT / "data" / "generated"
+# --data-dir lets a bigger regenerated corpus be trained and evaluated side by side with the
+# one currently in production, instead of overwriting it before the new model has been judged.
+_DATA_ARG = None
+for _i, _a in enumerate(sys.argv):
+    if _a == "--data-dir" and _i + 1 < len(sys.argv):
+        _DATA_ARG = sys.argv[_i + 1]
+DATA_DIR = Path(_DATA_ARG) if _DATA_ARG else REPO_ROOT / "data" / "generated"
 OUT_DIR = Path(__file__).parent / "output"
 REGISTRY_PATH = REPO_ROOT / "features" / "registry.yaml"
 
@@ -182,8 +188,140 @@ def main():
             "natural_prevalence": natural_prevalence,
         }, f, indent=2)
 
+    # ---- full evaluation report ----
+    # Written as a file rather than printed, so the console serves measured numbers and a
+    # deleted file makes the number disappear instead of persisting as a stale slide.
+    metrics = build_metrics(
+        model=model, calibrate=calibrate, df=df, test_df=test_df,
+        X_test=X_test, y_test=y_test, raw_test=raw_test, p_test_cal=p_test_cal,
+        ece=ece, monotone=monotone, train_df=train_df, cal_df=cal_df,
+    )
+    with open(OUT_DIR / "metrics.json", "w") as f:
+        json.dump(metrics, f, indent=2)
+    print(f"wrote metrics.json: ROC-AUC={metrics['roc_auc']:.4f} PR-AUC={metrics['pr_auc']:.4f} "
+          f"across {metrics['n_test']} held-out rows ({metrics['n_test_pos']} fraud)")
+
     print(f"wrote model.txt, model_manifest.json, calibrator.json, prevalence.json to {OUT_DIR}")
     print(f"done in {time.time()-t_start:.1f}s")
+
+
+def build_metrics(*, model, calibrate, df, test_df, X_test, y_test, raw_test, p_test_cal,
+                  ece, monotone, train_df, cal_df) -> dict:
+    """Everything the Model Evidence screen shows, computed once, here.
+
+    Two evaluations are reported and never conflated. The headline is the time-forward
+    held-out split -- train on earlier, test on strictly later -- which is the only split
+    that cannot leak the future and is what CLAUDE.md non-negotiable #8 requires. Stratified
+    cross-validation is reported alongside it purely as a stability estimate, because at this
+    fraud count a single test slice holds few positives and one unlucky split says little.
+    CV is labelled as such and is NOT the headline number.
+    """
+    out: dict = {}
+    y = y_test.to_numpy()
+    n_pos = int(y.sum())
+
+    out["n_train"] = int(len(train_df))
+    out["n_cal"] = int(len(cal_df))
+    out["n_test"] = int(len(y))
+    out["n_test_pos"] = n_pos
+    out["split"] = "time-forward: train on earliest 70%, calibrate on next 15%, test on latest 15%"
+
+    if 0 < n_pos < len(y):
+        out["roc_auc"] = float(roc_auc_score(y, raw_test))
+        out["pr_auc"] = float(average_precision_score(y, raw_test))
+        out["brier"] = float(np.mean((p_test_cal - y) ** 2))
+    else:
+        out["roc_auc"] = None
+        out["pr_auc"] = None
+        out["brier"] = None
+        out["note_test"] = "held-out slice contains no positive examples; AUC undefined"
+    out["ece"] = float(ece)
+
+    # Operating points: what an analyst team would actually feel, per 10k payments.
+    ops = []
+    if n_pos > 0:
+        for thr in [0.05, 0.10, 0.25, 0.50, 0.75, 0.90]:
+            pred = (p_test_cal >= thr)
+            tp = int((pred & (y == 1)).sum())
+            fp = int((pred & (y == 0)).sum())
+            fn = int(((~pred) & (y == 1)).sum())
+            prec = tp / (tp + fp) if (tp + fp) else 0.0
+            rec = tp / (tp + fn) if (tp + fn) else 0.0
+            f1 = 2 * prec * rec / (prec + rec) if (prec + rec) else 0.0
+            ops.append({"threshold": thr, "precision": prec, "recall": rec, "f1": f1,
+                        "true_positives": tp, "false_positives": fp,
+                        "alerts_per_10k": (tp + fp) / max(1, len(y)) * 10000})
+    out["operating_points"] = ops
+
+    # Recall per attack type -- the direct answer to "how does it generalise across the
+    # different ways payments actually go wrong?"
+    per_typ = {}
+    if "typology" in test_df.columns and n_pos > 0:
+        thr = 0.5
+        for typ, grp in test_df[test_df["label"]].groupby("typology"):
+            idx = grp.index
+            pos = p_test_cal[[test_df.index.get_loc(i) for i in idx]]
+            per_typ[str(typ)] = {"n": int(len(idx)), "recall": float((pos >= thr).mean())}
+    out["per_typology_recall"] = per_typ
+
+    # Ablation: retrain with whole feature families removed, same split, same seed. If a
+    # family can be deleted without moving the numbers, it is not earning its place.
+    families = {
+        "network / beneficiary graph": [f for f in FEATURE_IDS if f.startswith("payee_")],
+        "velocity": [f for f in FEATURE_IDS if "velocity" in f],
+        "device & network identity": [f for f in FEATURE_IDS if f.startswith("device_") or f.startswith("asn_")],
+        "relationship history": [f for f in FEATURE_IDS if f.startswith("pair_") or f.startswith("payee_is_new")],
+    }
+    ablation = [{"name": "full feature set", "pr_auc": out["pr_auc"], "recall": _recall_at(p_test_cal, y, 0.5),
+                 "precision": _precision_at(p_test_cal, y, 0.5)}]
+    if n_pos > 0:
+        for label, drop in families.items():
+            keep = [f for f in FEATURE_IDS if f not in set(drop)]
+            if len(keep) == len(FEATURE_IDS) or not keep:
+                continue
+            mono = [monotone[FEATURE_IDS.index(f)] for f in keep]
+            m2 = lgb.LGBMClassifier(
+                n_estimators=200, num_leaves=15, learning_rate=0.05,
+                min_child_samples=3, min_split_gain=0.0, subsample=0.9, colsample_bytree=0.8,
+                objective="binary", monotone_constraints=mono, monotone_constraints_method="advanced",
+                random_state=42, verbosity=-1)
+            m2.fit(train_df[keep], train_df["label"].astype(int))
+            p2 = m2.predict_proba(X_test[keep])[:, 1]
+            ablation.append({
+                "name": f"without {label}",
+                "pr_auc": float(average_precision_score(y, p2)),
+                "recall": _recall_at(p2, y, 0.5),
+                "precision": _precision_at(p2, y, 0.5),
+                "features_removed": len(drop),
+            })
+    out["ablation"] = ablation
+
+    # Which features the model actually leans on.
+    imp = sorted(zip(FEATURE_IDS, model.booster_.feature_importance(importance_type="gain")),
+                 key=lambda kv: -kv[1])
+    total = sum(v for _, v in imp) or 1.0
+    out["feature_importance"] = [{"feature": k, "gain_share": float(v / total)} for k, v in imp[:15]]
+
+    out["tier"] = "RECOVERED"
+    out["tier_note"] = ("Measured on a real time-forward held-out split, but the labels are this "
+                        "repo's own generator ground truth. It validates the pipeline; it is not a "
+                        "real-world detection rate.")
+    out["prevalence"] = float(df["label"].mean())
+    out["n_labelled_total"] = int(len(df))
+    out["n_fraud_total"] = int(df["label"].sum())
+    return out
+
+
+def _recall_at(p, y, thr):
+    pred = p >= thr
+    tp = int((pred & (y == 1)).sum()); fn = int(((~pred) & (y == 1)).sum())
+    return float(tp / (tp + fn)) if (tp + fn) else 0.0
+
+
+def _precision_at(p, y, thr):
+    pred = p >= thr
+    tp = int((pred & (y == 1)).sum()); fp = int((pred & (y == 0)).sum())
+    return float(tp / (tp + fp)) if (tp + fp) else 0.0
 
 
 def expected_calibration_error(y_true: np.ndarray, p: np.ndarray, n_bins: int = 10) -> float:

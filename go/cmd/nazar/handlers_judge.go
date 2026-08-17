@@ -56,12 +56,34 @@ func (s *Server) handleJudgeSession(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	writeJSON(w, http.StatusOK, judgeSessionResponse{
+	resp := judgeSessionResponse{
 		SessionID:       fmt.Sprintf("judge-%d", run),
 		PayerAccount:    payer,
 		MerchantAccount: judgeMerchantAccount,
 		MerchantLabel:   "Chai Point",
 		ScamAccount:     scam,
 		ScamLabel:       "KYC Verification Cell",
-	})
+	}
+
+	// Remember it so the presenter view on the big screen can follow this exact phone
+	// without anyone typing an account number mid-demo.
+	s.judgeMu.Lock()
+	s.judgeSession = &resp
+	s.judgeMu.Unlock()
+	s.hub.Publish("judge_session", resp)
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// GET /v1/judge/session — whichever phone most recently scanned the QR. The console's
+// presenter view polls this so it can highlight that payer's transactions as they land.
+func (s *Server) handleJudgeSessionActive(w http.ResponseWriter, r *http.Request) {
+	s.judgeMu.Lock()
+	sess := s.judgeSession
+	s.judgeMu.Unlock()
+	if sess == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"session": nil})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"session": sess})
 }
