@@ -102,7 +102,11 @@ func GetRecentLiveDecisions(ctx context.Context, db *sql.DB, limit int) ([]LiveR
 		       d.findings, d.p_prevalence_adj
 		FROM decisions d
 		JOIN transactions t ON t.end_to_end_id = d.end_to_end_id
-		WHERE d.kind = 'LIVE'
+		-- Session warm-up is a real decision but not something the room caused, and it is
+		-- suppressed from the live stream for that reason. Hydrating history without the
+		-- same filter refilled the feed with seed rows on every page load, which is the
+		-- same credibility problem arriving by a different route.
+		WHERE d.kind = 'LIVE' AND d.end_to_end_id NOT LIKE '%%-seed%%'
 		ORDER BY d.decided_at DESC
 		LIMIT $1`, limit)
 	if err != nil {

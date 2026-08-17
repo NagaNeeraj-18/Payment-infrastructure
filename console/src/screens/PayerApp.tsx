@@ -486,9 +486,12 @@ function WhyPanel({ why, err }: { why: ExplainResponse | null; err: string | nul
     <div className="pa-why">
       <div className="pa-why-sec">What we saw</div>
       {(ex.evidence ?? []).slice(0, 4).map((e) => (
-        <div key={e.id} className={`pa-why-item sev-${e.severity}`}>
-          <div className="pa-why-item-t">{e.title}</div>
-          <div className="pa-why-item-d">{e.detail}</div>
+        <div key={e.id} className={`ev-item sev-${e.severity}`}>
+          <span className="ev-dot" />
+          <div>
+            <div className="ev-t">{e.title}</div>
+            <div className="ev-d">{e.detail}</div>
+          </div>
         </div>
       ))}
 
