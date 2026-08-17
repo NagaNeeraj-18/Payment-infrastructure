@@ -142,22 +142,37 @@ type judgeSessionResponse struct {
 	LastAction string `json:"last_action,omitempty"`
 }
 
-// pickScenario avoids repeating the previous run, so two judges in a row never see the
-// same story. Guarded by judgeMu, which the caller already holds.
-var lastScenarioKey string
+// pickScenario deals from a shuffled deck rather than sampling independently. Independent
+// random choice can hand three judges in a row the same story purely by chance, which is the
+// exact impression this rotation exists to avoid. Dealing guarantees all five appear before
+// any repeats, and reshuffling never puts the last card of one deck first in the next.
+//
+// Guarded by judgeMu, which the caller holds.
+var scenarioDeck []int
 
 func pickScenario() judgeScenario {
 	if len(judgeScenarios) == 1 {
 		return judgeScenarios[0]
 	}
-	for {
-		s := judgeScenarios[rand.IntN(len(judgeScenarios))]
-		if s.Key != lastScenarioKey {
-			lastScenarioKey = s.Key
-			return s
+	if len(scenarioDeck) == 0 {
+		for i := range judgeScenarios {
+			scenarioDeck = append(scenarioDeck, i)
+		}
+		rand.Shuffle(len(scenarioDeck), func(i, j int) {
+			scenarioDeck[i], scenarioDeck[j] = scenarioDeck[j], scenarioDeck[i]
+		})
+		// Avoid the seam between decks repeating a story back to back.
+		if judgeScenarios[scenarioDeck[0]].Key == lastScenarioKey {
+			scenarioDeck[0], scenarioDeck[len(scenarioDeck)-1] = scenarioDeck[len(scenarioDeck)-1], scenarioDeck[0]
 		}
 	}
+	sc := judgeScenarios[scenarioDeck[0]]
+	scenarioDeck = scenarioDeck[1:]
+	lastScenarioKey = sc.Key
+	return sc
 }
+
+var lastScenarioKey string
 
 func (s *Server) handleJudgeSession(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

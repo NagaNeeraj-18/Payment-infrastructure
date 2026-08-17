@@ -41,6 +41,9 @@ type Act =
 
 /** Plain-banking translations of real fired signals. A signal not in this table still renders
  *  through the generic fallback, so nothing the engine flagged is silently dropped. */
+/** Per-tab, so a refresh keeps the same story but a new tab starts a fresh one. */
+const SESSION_KEY = "nazar.judge.session";
+
 const SIGNAL_COPY: Record<string, string> = {
   "rule:RAIL-102": "You have never sent money to this account before, and the amount is in the range scam collectors ask for.",
   "rule:RAIL-001": "This account was added to your list minutes ago, and the amount is above the regulatory limit for a brand-new payee.",
@@ -97,11 +100,39 @@ export function PayerApp() {
 
   useEffect(() => {
     let cancelled = false;
+    // One session per tab. Creating a new one on every mount meant a reload — or a second
+    // tab left open on the presenter's machine — silently spawned another persona, and the
+    // console, which follows the most recently created session, would then be showing a
+    // different name than the phone in the judge's hand. Reuse what this tab already has;
+    // a genuinely new story is an explicit act ("Run it again"), not an accident of refresh.
+    const cached = sessionStorage.getItem(SESSION_KEY);
+    if (cached) {
+      try {
+        const s = JSON.parse(cached) as JudgeSessionResponse;
+        if (s?.scenario?.persona_name) {
+          setSession(s);
+          api
+            .recentDecisions(200)
+            .then(({ rows }) => {
+              if (!cancelled && rows) {
+                setHistory(rows.filter((r) => r.debtor_account === s.payer_account).slice(0, 4));
+              }
+            })
+            .catch(() => {});
+          return () => {
+            cancelled = true;
+          };
+        }
+      } catch {
+        sessionStorage.removeItem(SESSION_KEY);
+      }
+    }
     api
       .judgeSession()
       .then(async (s) => {
         if (cancelled) return;
         setSession(s);
+        sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
         // Real prior activity for this payer — the warm-up payments the session seeded
         // through the same decision path. If the async shipper hasn't drained yet we show
         // fewer rows rather than inventing any.
@@ -417,7 +448,13 @@ export function PayerApp() {
               your reference <span className="mn">{decision.end_to_end_id}</span>
             </div>
           )}
-          <button className="pa-btn ghost" onClick={() => window.location.reload()}>
+          <button
+            className="pa-btn ghost"
+            onClick={() => {
+              sessionStorage.removeItem(SESSION_KEY);
+              window.location.reload();
+            }}
+          >
             Run it again for the next judge
           </button>
           <p className="pa-dim pa-note">The next scan draws a different scam. There are five in rotation.</p>

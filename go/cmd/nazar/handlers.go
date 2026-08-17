@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -185,7 +186,14 @@ func (s *Server) DecideAndPersist(ctx context.Context, ev *contract.Event) (*con
 	}
 
 	s.latency.Record(obs.Sample{TotalMs: d.TotalMs, QueueDelayMs: d.QueueDelayMs, ServiceMs: d.ServiceMs})
-	s.hub.Publish("decision", liveMonitorRow(ev, d))
+	// Setup traffic is a real decision through the real path — it is scored, persisted and
+	// audited like anything else — but it is not something the room did, so it does not
+	// belong in the live feed. Publishing it made the value-stopped counter climb on its own
+	// and filled the feed with rows nobody triggered, which reads as fabricated activity on
+	// the one screen whose credibility depends on being live.
+	if !isSetupTraffic(ev.EndToEndID) {
+		s.hub.Publish("decision", liveMonitorRow(ev, d))
+	}
 
 	// Async lane (docs/00 §4): everything below is off the request path already, using a
 	// context detached from the (now-closed) request context.
@@ -424,4 +432,11 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// isSetupTraffic reports whether an id belongs to session warm-up rather than to something
+// a person in the room caused. Judge sessions seed prior history so the first real tap is
+// not flagged purely for having none; those seeds are infrastructure, not events.
+func isSetupTraffic(endToEndID string) bool {
+	return strings.Contains(endToEndID, "-seed")
 }
