@@ -14,6 +14,7 @@ import { AnomalyDetection } from "./screens/AnomalyDetection";
 import { Alerts } from "./screens/Alerts";
 import { CommandCentre } from "./screens/CommandCentre";
 import { PolicyStudio } from "./screens/PolicyStudio";
+import { Analytics } from "./screens/Analytics";
 import { ModelEvidence } from "./screens/ModelEvidence";
 
 function App() {
@@ -27,6 +28,7 @@ function App() {
           <Route index element={<CommandCentre />} />
           <Route path="feed" element={<LiveMonitor />} />
           <Route path="policy-studio" element={<PolicyStudio />} />
+          <Route path="analytics" element={<Analytics />} />
           <Route path="model" element={<ModelEvidence />} />
           <Route path="anomaly" element={<AnomalyDetection />} />
           <Route path="alerts" element={<Alerts />} />

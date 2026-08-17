@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api/client";
-import type { StreamDecisionEvent } from "../api/types";
+import type { GraphTopAccount, StreamDecisionEvent } from "../api/types";
 import { formatMinor, formatTimeMs, truncateMid } from "../lib/format";
 
 /** A browsable list of what the system has actually decided.
@@ -144,75 +144,60 @@ export function AccountPicker({
   onPick: (account: string) => void;
   selected?: string | null;
 }) {
-  const [rows, setRows] = useState<StreamDecisionEvent[] | null>(null);
+  const [accounts, setAccounts] = useState<GraphTopAccount[] | null>(null);
+  const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     api
-      .recentDecisions(400)
-      .then((r) => !cancelled && setRows(r.rows ?? []))
+      .graphTop()
+      .then((r) => {
+        if (cancelled) return;
+        setAccounts(r.accounts ?? []);
+        setNote(r.note ?? "");
+      })
       .catch((e) => !cancelled && setError(e instanceof Error ? e.message : String(e)));
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const accounts = useMemo(() => {
-    if (!rows) return [];
-    const payers = new Map<string, Set<string>>();
-    const challenged = new Map<string, number>();
-    for (const r of rows) {
-      if (!r.creditor_account) continue;
-      if (!payers.has(r.creditor_account)) payers.set(r.creditor_account, new Set());
-      payers.get(r.creditor_account)!.add(r.debtor_account);
-      if (r.action !== "ALLOW" && r.action !== "ALLOW_MONITOR") {
-        challenged.set(r.creditor_account, (challenged.get(r.creditor_account) ?? 0) + 1);
-      }
-    }
-    return Array.from(payers.entries())
-      .map(([account, set]) => ({
-        account,
-        distinctPayers: set.size,
-        challenged: challenged.get(account) ?? 0,
-      }))
-      .sort((a, b) => b.distinctPayers - a.distinctPayers || b.challenged - a.challenged)
-      .slice(0, 18);
-  }, [rows]);
-
   if (error) return <div className="deg">Could not load accounts: {error}</div>;
 
   return (
     <div className="card rp">
       <div className="ch">
-        <h2>Or pick a beneficiary the system has seen</h2>
+        <h2>Pick a beneficiary the graph is holding</h2>
         <div className="sp" />
-        <span className="sub">ranked by how many different people paid it</span>
+        <span className="sub">ranked by distinct payers</span>
       </div>
-      {!rows && <div className="rp-empty">Loading accounts…</div>}
-      {rows && accounts.length === 0 && (
+      {!accounts && <div className="rp-empty">Loading accounts…</div>}
+      {accounts && accounts.length === 0 && (
         <div className="rp-empty">
-          No accounts yet. Launch the mule fan-out attack on Command Centre — that one is built to
-          produce a ring — and they appear here.
+          The graph is empty. It is held in process, so it only knows what this instance has seen since it
+          started — launch the mule fan-out attack on Command Centre, which is built to produce a ring, and
+          these fill in.
         </div>
       )}
       <div className="rp-accts">
-        {accounts.map((a) => (
+        {(accounts ?? []).map((a) => (
           <button
             key={a.account}
             className={`rp-acct ${selected === a.account ? "sel" : ""} ${
-              a.distinctPayers >= 3 ? "ring" : ""
+              a.distinct_payers >= 3 ? "ring" : ""
             }`}
             onClick={() => onPick(a.account)}
           >
             <span className="rp-acct-id mn">{truncateMid(a.account, 16, 6)}</span>
             <span className="rp-acct-n">
-              {a.distinctPayers} payer{a.distinctPayers === 1 ? "" : "s"}
-              {a.challenged > 0 ? ` · ${a.challenged} challenged` : ""}
+              {a.distinct_payers} payer{a.distinct_payers === 1 ? "" : "s"}
+              {a.shared_devices > 0 ? ` · ${a.shared_devices} device${a.shared_devices === 1 ? "" : "s"}` : ""}
             </span>
           </button>
         ))}
       </div>
+      {note && <p className="rp-note">{note}</p>}
     </div>
   );
 }

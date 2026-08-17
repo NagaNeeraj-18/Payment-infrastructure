@@ -86,6 +86,7 @@ const GROUPS: { label: string; items: { to: string; id: string; label: string }[
   {
     label: "Verify",
     items: [
+      { to: "/analytics", id: "cal", label: "Fraud Analytics" },
       { to: "/demo", id: "demo", label: "Demo Runner" },
       { to: "/time-machine", id: "tm", label: "Time Machine" },
       { to: "/graph", id: "ring", label: "Graph / Ring" },

@@ -37,6 +37,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/audit/verify", s.handleAuditVerify)
 	mux.HandleFunc("POST /v1/admin/chaos/redis", s.handleChaosRedis)
 	mux.HandleFunc("POST /v1/admin/blocklist/refresh", s.handleBlocklistRefresh)
+	mux.HandleFunc("GET /v1/graph/top", s.handleGraphTop)
 	mux.HandleFunc("GET /v1/graph/{account}", s.handleGraph)
 	mux.HandleFunc("GET /v1/policy", s.handlePolicy)
 	mux.HandleFunc("POST /v1/demo/run/{scenario}", s.handleDemoRun)
@@ -64,6 +65,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/policy/tune", s.handlePolicyTune)
 	mux.HandleFunc("POST /v1/policy/reset", s.handlePolicyReset)
 	mux.HandleFunc("GET /v1/model/metrics", s.handleModelMetrics)
+	mux.HandleFunc("GET /v1/analytics", s.handleAnalytics)
 	mux.HandleFunc("GET /v1/model/coverage", s.handleModelCoverage)
 }
 

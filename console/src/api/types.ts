@@ -593,3 +593,46 @@ export interface ChatResponse {
   answer: ChatAnswer;
   degraded: boolean;
 }
+
+// ── analytics ───────────────────────────────────────────────────────────────
+// GET /v1/analytics — group-bys over decisions this instance actually made.
+
+export interface CutRow {
+  key: string;
+  label: string;
+  total: number;
+  challenged: number;
+  rate: number;
+  value_minor: number;
+  value_challenged_minor: number;
+  value_rate: number;
+  lat?: number;
+  lon?: number;
+}
+
+export interface AnalyticsResponse {
+  window_from_ms: number;
+  window_to_ms: number;
+  decisions: number;
+  challenged: number;
+  value_minor: number;
+  value_challenged_minor: number;
+  places: CutRow[];
+  typologies: CutRow[];
+  rails: CutRow[];
+  bands: CutRow[];
+  hours: CutRow[];
+  signals: CutRow[];
+  note: string;
+}
+
+export interface GraphTopAccount {
+  account: string;
+  distinct_payers: number;
+  shared_devices: number;
+}
+
+export interface GraphTopResponse {
+  accounts: GraphTopAccount[];
+  note: string;
+}

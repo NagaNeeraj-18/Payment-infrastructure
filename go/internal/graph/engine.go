@@ -10,6 +10,7 @@
 package graph
 
 import (
+	"sort"
 	"sync"
 )
 
@@ -215,4 +216,52 @@ func defaultBankOf(acct string) string {
 		}
 	}
 	return "UNKNOWN"
+}
+
+// TopPayees returns the beneficiaries this engine currently knows about, ranked by how many
+// distinct payers have paid them within the decay window — which is exactly the axis the ring
+// score is built on, so the account at the top of this list is the one most likely to show
+// structure when it is opened.
+//
+// This exists because the console cannot honestly offer accounts to inspect otherwise. The
+// graph is in-process by design (CLAUDE.md: in-process Go adjacency at P0), so it holds only
+// what this process has seen since it started, while persisted history reaches much further
+// back. Offering an account from history that the graph has since forgotten renders as a
+// screen of zeros — technically correct and completely misleading. Listing what the engine
+// actually holds means every account offered has something to show.
+type PayeeSummary struct {
+	Account       string `json:"account"`
+	DistinctPayers int   `json:"distinct_payers"`
+	SharedDevices  int   `json:"shared_devices"`
+}
+
+func (g *Engine) TopPayees(nowMs int64, limit int) []PayeeSummary {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	out := make([]PayeeSummary, 0, len(g.payeeToPayers))
+	for payee, payers := range g.payeeToPayers {
+		n := 0
+		for _, e := range payers {
+			if withinDecayWindow(e.lastSeenMs, nowMs) {
+				n++
+			}
+		}
+		if n == 0 {
+			continue
+		}
+		out = append(out, PayeeSummary{
+			Account: payee, DistinctPayers: n, SharedDevices: len(g.accountToDevices[payee]),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].DistinctPayers != out[j].DistinctPayers {
+			return out[i].DistinctPayers > out[j].DistinctPayers
+		}
+		return out[i].Account < out[j].Account
+	})
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out
 }

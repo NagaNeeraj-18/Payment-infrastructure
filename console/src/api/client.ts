@@ -2,6 +2,7 @@
 // function either resolves with real backend JSON or throws, and callers render the error.
 import type {
   AlertsResponse,
+  AnalyticsResponse,
   ChatResponse,
   ChatTurn,
   ExplainResponse,
@@ -20,6 +21,7 @@ import type {
   DemoRunResponse,
   DemoScenario,
   GraphResponse,
+  GraphTopResponse,
   HealthzResponse,
   JudgeSessionResponse,
   LatencyResponse,
@@ -84,6 +86,7 @@ export const api = {
   auditVerify: () => getJSON<AuditVerifyResponse>("/v1/audit/verify"),
   chaosRedis: (action: "kill" | "restore") =>
     postJSON<ChaosResponse>("/v1/admin/chaos/redis", { action }),
+  graphTop: () => getJSON<GraphTopResponse>("/v1/graph/top"),
   graph: (account: string) => getJSON<GraphResponse>(`/v1/graph/${encodeURIComponent(account)}`),
   policy: () => getJSON<PolicyBundle>("/v1/policy"),
   calibration: () => getJSON<CalibrationResponse>("/v1/calibration"),
@@ -135,6 +138,7 @@ export const api = {
   tunePolicy: (req: PolicyTuneRequest) => postJSON<PolicyTuneResponse>("/v1/policy/tune", req),
   resetPolicy: () => postJSON<{ status: string; policy_version: string }>("/v1/policy/reset"),
   // Model evidence
+  analytics: () => getJSON<AnalyticsResponse>("/v1/analytics"),
   modelMetrics: () => getJSON<ModelMetricsResponse>("/v1/model/metrics"),
   modelCoverage: () => getJSON<CoverageResponse>("/v1/model/coverage"),
   streamUrl: () => `${API_BASE}/v1/stream`,

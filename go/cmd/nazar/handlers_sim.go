@@ -169,7 +169,7 @@ func (s *Server) runAmbientTraffic(ctx context.Context, tps float64) {
 				CreditorAccount:       p[1],
 				InstructedAmountMinor: amount,
 				Initiation:            "INTENT",
-				DeviceID:              deviceFor(p[0]),
+				DeviceID:              deviceFor(p[0]), GeoCell: geoCellFor(p[0]),
 			}
 			if _, _, err := s.DecideAndPersist(ctx, ev); err != nil {
 				return // context cancelled or the engine is genuinely unhappy — stop, don't spin
@@ -203,7 +203,7 @@ func (s *Server) ensureWarmPairs(ctx context.Context) {
 				CreditorAccount:       payee,
 				InstructedAmountMinor: int64(30000 + j*2000),
 				Initiation:            "INTENT",
-				DeviceID:              deviceFor(payer),
+				DeviceID:              deviceFor(payer), GeoCell: geoCellFor(payer),
 			}
 			if _, _, err := s.DecideAndPersist(ctx, ev); err != nil {
 				return
@@ -369,7 +369,7 @@ func buildCampaignEvents(kind string, run int64, steps int) []*contract.Event {
 				EndToEndID: id(i), Rail: contract.RailUPI,
 				DebtorAccount: victim, CreditorAccount: mule,
 				InstructedAmountMinor: int64(210000 + i*18000), // inside the scam-typical band
-				Initiation:            "INTENT", DeviceID: deviceFor(victim),
+				Initiation:            "INTENT", DeviceID: deviceFor(victim), GeoCell: geoCellFor(victim),
 			})
 		}
 
@@ -453,7 +453,7 @@ func buildCampaignEvents(kind string, run int64, steps int) []*contract.Event {
 				EndToEndID: id(i), Rail: contract.RailUPI,
 				DebtorAccount: payer, CreditorAccount: acct("SMURFDST%02d-%d", i, run%100000),
 				InstructedAmountMinor: int64(185000 + (i%3)*7000),
-				Initiation:            "INTENT", DeviceID: deviceFor(payer),
+				Initiation:            "INTENT", DeviceID: deviceFor(payer), GeoCell: geoCellFor(payer),
 			})
 		}
 	}
