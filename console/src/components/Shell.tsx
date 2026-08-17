@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { ThemeToggle } from "./ThemeToggle";
 
 const ICONS: Record<string, ReactNode> = {
   live: (
@@ -166,6 +167,7 @@ export function Shell(): ReactNode {
             />
           </div>
           <div className="tr">
+            <ThemeToggle />
             <div className="av">OP</div>
           </div>
         </div>
