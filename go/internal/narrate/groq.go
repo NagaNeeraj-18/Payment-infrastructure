@@ -211,6 +211,12 @@ func (n *OpenAINarrator) Narrate(ctx context.Context, b Brief) (*Result, error) 
 		// than dropping it — an analyst can still read prose.
 		parsed.Summary = truncate(content, 1500)
 	}
+	// Even a successful parse can carry a malformed field, so normalise unconditionally.
+	parsed.Summary = cleanSummary(parsed.Summary)
+	if parsed.Summary == "" && len(parsed.Reasoning) > 0 {
+		// A clean field we know the model wrote as prose, rather than showing nothing.
+		parsed.Summary = cleanSummary(parsed.Reasoning[0])
+	}
 
 	return &Result{
 		Summary: parsed.Summary, Reasoning: parsed.Reasoning, NextSteps: parsed.NextSteps,
@@ -357,4 +363,48 @@ func (n *OpenAINarrator) Chat(ctx context.Context, b Brief, history []Turn) (*An
 		Grounded:  true,
 		Note:      "Answered by a language model from Nazar's structured findings. The decision was made before this ran and does not depend on it.",
 	}, nil
+}
+
+// cleanSummary defends against a model that answers in the right shape but puts the wrong
+// thing in it. Asking for JSON does not guarantee well-formed JSON: these models
+// occasionally serialise the entire object into the "summary" field, or wrap the reply in a
+// markdown fence. Either way the console would render raw JSON at an analyst, which is the
+// worst possible failure for a screen whose whole job is legibility.
+//
+// This never invents text. It only recovers the intended summary from a malformed one, and
+// gives up to an empty string so the caller can fall back to the first reasoning paragraph.
+func cleanSummary(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "```json")
+	s = strings.TrimPrefix(s, "```")
+	s = strings.TrimSuffix(s, "```")
+	s = strings.TrimSpace(s)
+
+	// The whole object landed in the field. Parse it and lift the real summary out.
+	if strings.HasPrefix(s, "{") {
+		var nested struct {
+			Summary string `json:"summary"`
+		}
+		if json.Unmarshal([]byte(s), &nested) == nil && nested.Summary != "" {
+			return cleanSummary(nested.Summary)
+		}
+	}
+	// A truncated or half-escaped object: the summary is the prose before the next key.
+	for _, marker := range []string{`","reasoning"`, `", "reasoning"`, `","next_steps"`, `", "next_steps"`} {
+		if i := strings.Index(s, marker); i > 0 {
+			return cleanSummary(s[:i])
+		}
+	}
+	// Residual JSON punctuation from a partial parse.
+	s = strings.TrimPrefix(s, `{"summary":`)
+	s = strings.TrimSpace(s)
+	s = strings.Trim(s, `"`)
+	s = strings.TrimSpace(s)
+
+	// Still structural? We cannot recover it honestly, so return nothing and let the caller
+	// use a field we know is clean.
+	if strings.HasPrefix(s, "{") || strings.Contains(s, `"reasoning":`) {
+		return ""
+	}
+	return s
 }

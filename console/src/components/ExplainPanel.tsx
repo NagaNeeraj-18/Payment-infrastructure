@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
-import type { ChatTurn, ExplainResponse, Narrative } from "../api/types";
+import type { ChatTurn, ExplainResponse } from "../api/types";
 import { formatMinor, formatMs } from "../lib/format";
 
 /** The answer to "how do you actually know this is fraud?".
@@ -13,14 +13,11 @@ export function ExplainPanel({ id, onClose }: { id: string; onClose?: () => void
   const [data, setData] = useState<ExplainResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"why" | "proof" | "money" | "ask">("why");
-  const [narr, setNarr] = useState<Narrative | null>(null);
-  const [narrLoading, setNarrLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setData(null);
     setError(null);
-    setNarr(null);
     api
       .explainWhenReady(id)
       .then((d) => !cancelled && setData(d))
@@ -29,18 +26,6 @@ export function ExplainPanel({ id, onClose }: { id: string; onClose?: () => void
       cancelled = true;
     };
   }, [id]);
-
-  async function runNarrate() {
-    setNarrLoading(true);
-    try {
-      const r = await api.narrate(id);
-      setNarr(r.narrative);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setNarrLoading(false);
-    }
-  }
 
   if (error) return <div className="deg">Could not load explanation: {error}</div>;
   if (!data)
@@ -83,7 +68,7 @@ export function ExplainPanel({ id, onClose }: { id: string; onClose?: () => void
             ["why", "Why this decision"],
             ["money", "The arithmetic"],
             ["proof", "Proof it's reproducible"],
-            ["ask", "Ask about it"],
+            ["ask", "Ask Nazar"],
           ] as const
         ).map(([k, label]) => (
           <button key={k} className={`xp-tab ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
@@ -168,36 +153,11 @@ export function ExplainPanel({ id, onClose }: { id: string; onClose?: () => void
             </>
           )}
 
-          <div className="xp-sec">Analyst write-up</div>
-          {!narr && (
-            <button className="pill pri" onClick={runNarrate} disabled={narrLoading}>
-              {narrLoading ? "Writing…" : "Explain this to me in plain English"}
-            </button>
-          )}
-          {narr && (
-            <div className="xp-narrbox">
-              <p className="xp-narr-sum">{narr.summary}</p>
-              {(narr.reasoning ?? []).map((r, i) => (
-                <p key={i} className="xp-narr">
-                  {r}
-                </p>
-              ))}
-              {(narr.next_steps ?? []).length > 0 && (
-                <>
-                  <div className="xp-sec">Next steps</div>
-                  <ul className="xp-steps">
-                    {(narr.next_steps ?? []).map((s, i) => (
-                      <li key={i}>{s}</li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              <div className="xp-prov">
-                {narr.deterministic ? "Generated without a language model" : `${narr.provider} · ${narr.model}`}
-                {narr.on_premise ? " · stays inside the deployment boundary" : ""} — {narr.note}
-              </div>
-            </div>
-          )}
+          <div className="xp-sec">Ask about this decision</div>
+          <p className="xp-ask-hint">
+            Open <b>Ask Nazar</b> above to question this decision in plain English. It answers only from this
+            record — ask it something the record does not contain and it will say so.
+          </p>
         </div>
       )}
 
@@ -346,6 +306,7 @@ function AskPanel({ id }: { id: string }) {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [opening, setOpening] = useState(true);
   const [meta, setMeta] = useState<{ provider: string; model: string; ms: number; degraded: boolean } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -353,10 +314,28 @@ function AskPanel({ id }: { id: string }) {
   useEffect(() => {
     // Reset when the analyst opens a different decision — carrying a conversation across
     // records is how you end up answering about the wrong payment.
+    let cancelled = false;
     setTurns([]);
     setDraft("");
     setMeta(null);
     setErr(null);
+    setOpening(true);
+    // Open with the grounded write-up already in the thread, so the analyst arrives at a
+    // conversation in progress rather than an empty box.
+    api
+      .narrate(id)
+      .then((r) => {
+        if (cancelled) return;
+        const n = r.narrative;
+        const body = [n.summary, ...(n.reasoning ?? [])].filter(Boolean).join("\n\n");
+        setTurns([{ role: "assistant", content: body }]);
+        setMeta({ provider: n.provider, model: n.model, ms: n.latency_ms, degraded: r.degraded });
+      })
+      .catch((e) => !cancelled && setErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => !cancelled && setOpening(false));
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   useEffect(() => {
@@ -382,7 +361,7 @@ function AskPanel({ id }: { id: string }) {
     }
   }
 
-  const SUGGESTIONS = [
+  const SUGGESTIONS: string[] = [
     "Why not just block it?",
     "What would have made this allowed?",
     "How confident are you, really?",
@@ -392,7 +371,8 @@ function AskPanel({ id }: { id: string }) {
   return (
     <div className="xp-body xp-ask">
       <div className="xp-ask-log">
-        {turns.length === 0 && !busy && (
+        {opening && <div className="xp-ask-msg assistant thinking">Reading this decision…</div>}
+        {turns.length === 0 && !busy && !opening && (
           <div className="xp-ask-empty">
             <p>Ask anything about this decision. Answers come from the decision record itself.</p>
             <div className="xp-ask-sugs">
@@ -409,7 +389,16 @@ function AskPanel({ id }: { id: string }) {
             {t.content}
           </div>
         ))}
-        {busy && <div className="xp-ask-msg assistant thinking">Reading the record…</div>}
+        {turns.length === 1 && !busy && (
+          <div className="xp-ask-sugs">
+            {SUGGESTIONS.map((sg) => (
+              <button key={sg} className="xp-ask-sug" onClick={() => send(sg)}>
+                {sg}
+              </button>
+            ))}
+          </div>
+        )}
+        {busy && <div className="xp-ask-msg assistant thinking">Thinking…</div>}
         {err && <div className="xp-ask-err">{err}</div>}
         <div ref={endRef} />
       </div>
@@ -426,9 +415,9 @@ function AskPanel({ id }: { id: string }) {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Ask about this decision…"
-          disabled={busy}
+          disabled={busy || opening}
         />
-        <button className="pill pri" type="submit" disabled={busy || !draft.trim()}>
+        <button className="pill pri" type="submit" disabled={busy || opening || !draft.trim()}>
           Ask
         </button>
       </form>

@@ -802,3 +802,5 @@ input.field:focus { outline: 2px solid var(--indigo); outline-offset: 1px; }
 }
 .xp-ask-input:focus { outline: none; border-color: var(--accent, #4c6ef5); }
 .xp-ask-input::placeholder { color: var(--ink4); }
+.xp-ask-hint { font-size: 13px; color: var(--ink4); line-height: 1.55; margin: 0; }
+.xp-ask-log .xp-ask-sugs { margin-top: 2px; }
