@@ -31,6 +31,12 @@ import type {
 // "localhost", which only ever means the phone itself. Falls back to localhost for anything
 // not served over http/https (e.g. a file:// preview).
 export const API_BASE = (() => {
+  // A deployment that puts a reverse proxy in front of both the console and the engine sets
+  // VITE_API_BASE="" at build time: every call then goes to the same origin, which is what
+  // makes one port, one certificate and no CORS preflight possible. Any other value is used
+  // verbatim. Unset (the dev default) keeps the split-port behaviour below.
+  const configured = import.meta.env.VITE_API_BASE;
+  if (typeof configured === "string") return configured;
   if (typeof window === "undefined" || !window.location.hostname) return "http://localhost:8080";
   const proto = window.location.protocol === "https:" ? "https:" : "http:";
   return `${proto}//${window.location.hostname}:8080`;
@@ -75,6 +81,10 @@ export const api = {
     getJSON<RecentDecisionsResponse>(`/v1/decisions/recent?limit=${limit}`),
   judgeSession: () => postJSON<JudgeSessionResponse>("/v1/judge/session"),
   judgeSessionActive: () => getJSON<{ session: JudgeSessionResponse | null }>("/v1/judge/session"),
+  // Presentation state only — reports which beat the phone is on so the big screen can
+  // mirror it. Fire-and-forget: a failure here must never interrupt the story.
+  judgeAct: (body: { session_id: string; act: string; ref?: string; action?: string }) =>
+    postJSON<{ ok: boolean }>("/v1/judge/act", body).catch(() => ({ ok: false })),
   alerts: (status: "open" | "resolved" | "all" = "open", limit = 200) =>
     getJSON<AlertsResponse>(`/v1/alerts?status=${status}&limit=${limit}`),
   resolveAlert: (id: number) => postJSON<{ status: string }>(`/v1/alerts/${id}/resolve`, { resolved_by: "operator" }),

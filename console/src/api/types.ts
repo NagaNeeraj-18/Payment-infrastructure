@@ -250,6 +250,28 @@ export interface AlertsResponse {
 
 // POST /v1/judge/session — seeds a fresh real payer with real warm-up history (via the same
 // DecideAndPersist path everything else uses), for the judge-facing Payer App.
+export interface JudgeScenario {
+  key: string;
+  persona_name: string;
+  persona_blurb: string;
+  merchant_account: string;
+  merchant_label: string;
+  merchant_sub: string;
+  merchant_initials: string;
+  everyday_amount_minor: number;
+  scam_label: string;
+  scam_initials: string;
+  sender_id: string;
+  caller_number: string;
+  caller_caption: string;
+  headline: string;
+  message_body: string;
+  account_caption: string;
+  scam_amount_minor: number;
+  why_it_works: string;
+  the_truth: string;
+}
+
 export interface JudgeSessionResponse {
   session_id: string;
   payer_account: string;
@@ -257,6 +279,15 @@ export interface JudgeSessionResponse {
   merchant_label: string;
   scam_account: string;
   scam_label: string;
+  // The story this run drew. Every scan gets a different one, so the copy on the phone
+  // comes from here rather than being baked into the component.
+  scenario: JudgeScenario;
+  // Live beat the phone is on, mirrored onto the console.
+  act: string;
+  act_label: string;
+  updated_ms: number;
+  last_ref?: string;
+  last_action?: string;
 }
 
 // GET /v1/decisions/recent — real persisted history (Postgres), same shape as the SSE

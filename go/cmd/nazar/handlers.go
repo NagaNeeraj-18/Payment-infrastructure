@@ -47,6 +47,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /v1/federation/wire/{id}", s.handleFederationWire)
 	mux.HandleFunc("POST /v1/judge/session", s.handleJudgeSession)
 	mux.HandleFunc("GET /v1/judge/session", s.handleJudgeSessionActive)
+	mux.HandleFunc("POST /v1/judge/act", s.handleJudgeAct)
 	mux.HandleFunc("GET /v1/alerts", s.handleListAlerts)
 	mux.HandleFunc("POST /v1/alerts/{id}/resolve", s.handleResolveAlert)
 

@@ -688,3 +688,79 @@ input.field:focus { outline: 2px solid var(--indigo); outline-offset: 1px; }
   .pa-card, .pa-phone, .pa-warn { padding-left: 16px; padding-right: 16px; }
   .pa-card h1, .pa-warn h1 { font-size: 22px; }
 }
+
+/* ── judge phone mirror (Command Centre) ─────────────────────────────────── */
+.cc-judge-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.cc-judge-who { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.cc-judge-who b { font-size: 15px; }
+.cc-judge-who .mn { font-size: 11px; color: var(--ink4); }
+.cc-judge-scam { font-size: 12px; color: var(--ink3); font-style: italic; }
+.cc-judge-badge i {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--ok, #35d07f); margin-right: 6px;
+  animation: cc-judge-pulse 1.4s ease-in-out infinite;
+}
+@keyframes cc-judge-pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+
+.cc-judge-track { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.cc-judge-beat {
+  flex: 1 1 0; min-width: 70px; text-align: center;
+  font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase;
+  padding: 5px 6px; border-radius: 5px;
+  background: var(--bg3, rgba(255,255,255,.04)); color: var(--ink4);
+  border: 1px solid transparent; transition: background .25s, color .25s, border-color .25s;
+}
+.cc-judge-beat.done { color: var(--ink3); background: rgba(53,208,127,.10); }
+.cc-judge-beat.on {
+  color: var(--ink1, #fff); background: rgba(255,176,32,.16);
+  border-color: rgba(255,176,32,.55); font-weight: 600;
+}
+.cc-judge-now { display: flex; align-items: center; gap: 10px; margin-top: 9px; flex-wrap: wrap; }
+.cc-judge-now b { font-size: 13px; }
+.cc-judge-act { font-size: 11px; padding: 2px 7px; border-radius: 4px; font-weight: 600; }
+.cc-judge-ref { font-size: 10.5px; color: var(--ink4); }
+
+/* ── payer app: the customer-facing reasoning ────────────────────────────── */
+.pa-why-toggle {
+  width: 100%; margin: 12px 0 0; padding: 10px;
+  background: transparent; border: 1px dashed rgba(255,255,255,.22);
+  border-radius: 8px; color: var(--ink2, #cfd4dc);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.pa-why-toggle:hover { border-color: rgba(255,255,255,.4); }
+.pa-why {
+  margin-top: 10px; padding: 12px; border-radius: 9px;
+  background: rgba(0,0,0,.22); border: 1px solid rgba(255,255,255,.08);
+  text-align: left;
+}
+.pa-why-load { color: var(--ink4); font-size: 13px; }
+.pa-why-sec {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--ink4); margin: 10px 0 6px;
+}
+.pa-why-sec:first-child { margin-top: 0; }
+.pa-why-item { padding: 7px 0 7px 10px; border-left: 2px solid var(--ink4); margin-bottom: 6px; }
+.pa-why-item.sev-critical, .pa-why-item.sev-high { border-left-color: #ff5c5c; }
+.pa-why-item.sev-medium { border-left-color: #ffb020; }
+.pa-why-item-t { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.pa-why-item-d { font-size: 12.5px; color: var(--ink3); line-height: 1.45; }
+.pa-why-clear { display: flex; flex-wrap: wrap; gap: 5px; }
+.pa-why-chip {
+  font-size: 11px; padding: 3px 8px; border-radius: 20px;
+  background: rgba(53,208,127,.12); color: #7fe0ab; border: 1px solid rgba(53,208,127,.25);
+}
+.pa-why-chip.more { background: transparent; color: var(--ink4); border-color: rgba(255,255,255,.15); }
+.pa-why-note { font-size: 12px; color: var(--ink4); line-height: 1.5; margin: 8px 0 0; }
+.pa-why-proof { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+.pa-why-proof .ok { color: #7fe0ab; }
+.pa-why-proof .bad { color: #ff8a8a; }
+.pa-why-works {
+  margin: 12px 0; padding: 11px 13px; border-radius: 8px;
+  background: rgba(255,176,32,.08); border: 1px solid rgba(255,176,32,.22); text-align: left;
+}
+.pa-why-works-h {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .07em;
+  color: #ffc861; margin-bottom: 5px;
+}
+.pa-why-works p { font-size: 13px; color: var(--ink2); line-height: 1.5; margin: 0; }
+.pa-sms-sub { font-size: 13px; font-weight: 700; margin: 4px 0 6px; color: var(--ink1, #fff); }

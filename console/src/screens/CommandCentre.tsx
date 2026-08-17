@@ -32,6 +32,16 @@ const ACTION_SHORT: Record<string, string> = {
   BLOCK: "Blocked",
 };
 
+/** The phone's five beats, mirrored on the big screen so the room can see where the judge is
+ *  in the story without the presenter having to say it. */
+const JUDGE_BEATS: { key: string; label: string }[] = [
+  { key: "home", label: "Everyday" },
+  { key: "call", label: "Approach" },
+  { key: "scam_pay", label: "About to pay" },
+  { key: "warned", label: "Warned" },
+  { key: "reveal", label: "Proof" },
+];
+
 /** Counts up to a target so a number that jumps by 40 reads as motion rather than a redraw. */
 function useTicker(target: number, ms = 450) {
   const [v, setV] = useState(target);
@@ -89,7 +99,7 @@ export function CommandCentre() {
       }
     }
     poll();
-    const t = window.setInterval(poll, 1200);
+    const t = window.setInterval(poll, 700);
     return () => {
       cancelled = true;
       window.clearInterval(t);
@@ -160,13 +170,42 @@ export function CommandCentre() {
         </button>
       </div>
 
-      {judgePayer && (
+      {judge && judgePayer && (
         <div className="cc-judge">
-          <span className="cc-judge-badge">PHONE CONNECTED</span>
-          <span>
-            A judge's handset is live on this system as <span className="mn">{truncateMid(judgePayer, 14, 6)}</span>. Their
-            taps appear in the feed below the moment they happen.
-          </span>
+          <div className="cc-judge-top">
+            <span className="cc-judge-badge">
+              <i />
+              PHONE CONNECTED
+            </span>
+            <span className="cc-judge-who">
+              <b>{judge.scenario?.persona_name ?? "Customer"}</b>
+              <span className="mn">{truncateMid(judgePayer, 14, 6)}</span>
+            </span>
+            <div className="sp" />
+            {judge.scenario?.scam_label && (
+              <span className="cc-judge-scam">approached by “{judge.scenario.scam_label}”</span>
+            )}
+          </div>
+          <div className="cc-judge-track">
+            {JUDGE_BEATS.map((b) => {
+              const at = JUDGE_BEATS.findIndex((x) => x.key === judge.act);
+              const i = JUDGE_BEATS.findIndex((x) => x.key === b.key);
+              return (
+                <span key={b.key} className={`cc-judge-beat ${i === at ? "on" : i < at ? "done" : ""}`}>
+                  {b.label}
+                </span>
+              );
+            })}
+          </div>
+          <div className="cc-judge-now">
+            <b>{judge.act_label || "…"}</b>
+            {judge.last_action && (
+              <span className={`cc-judge-act t-${ACTION_TONE[judge.last_action] ?? "ok"}`}>
+                {ACTION_SHORT[judge.last_action] ?? judge.last_action}
+              </span>
+            )}
+            {judge.last_ref && <span className="cc-judge-ref mn">{truncateMid(judge.last_ref, 18, 8)}</span>}
+          </div>
         </div>
       )}
 
