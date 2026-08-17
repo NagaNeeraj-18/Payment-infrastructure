@@ -148,3 +148,91 @@ func firstOr(xs []string, def string) string {
 	}
 	return xs[0]
 }
+
+// ── interactive lane ────────────────────────────────────────────────────────
+//
+// Same seam, same brief, same guarantees. An analyst asks follow-up questions about a
+// decision that has ALREADY been made; nothing here can change it, and the model is still
+// shown only the whitelisted Brief. The analyst's own questions are free text, but the
+// analyst is a trusted operator sitting at the console — the injection surface this system
+// actually guards against is attacker-controlled *payment* fields, which never appear here.
+
+// Turn is one message in an analyst conversation.
+type Turn struct {
+	Role    string `json:"role"` // "user" | "assistant"
+	Content string `json:"content"`
+}
+
+// Answer is a single reply in that conversation.
+type Answer struct {
+	Reply     string  `json:"reply"`
+	Provider  string  `json:"provider"`
+	Model     string  `json:"model"`
+	OnPremise bool    `json:"on_premise"`
+	LatencyMs float64 `json:"latency_ms"`
+	Grounded  bool    `json:"grounded"` // false when answered without a model
+	Note      string  `json:"note"`
+}
+
+// ChatNarrator is optional. A narrator that cannot hold a conversation simply does not
+// implement it, and the handler falls back to the deterministic answerer.
+type ChatNarrator interface {
+	Chat(ctx context.Context, b Brief, history []Turn) (*Answer, error)
+}
+
+// maxTurns bounds how much conversation is replayed to the model. A demo conversation is a
+// handful of questions; anything past this is either a mistake or an attempt to push the
+// brief out of the context window with filler.
+const maxTurns = 16
+
+// SanitiseTurns drops empty and over-long messages and keeps only the most recent exchange.
+// Length-capping matters: the brief is the grounding, and a caller that sends a megabyte of
+// "user" text could otherwise crowd it out of the prompt entirely.
+func SanitiseTurns(in []Turn) []Turn {
+	out := make([]Turn, 0, len(in))
+	for _, t := range in {
+		role := strings.ToLower(strings.TrimSpace(t.Role))
+		if role != "user" && role != "assistant" {
+			continue
+		}
+		c := strings.TrimSpace(t.Content)
+		if c == "" {
+			continue
+		}
+		if len(c) > 2000 {
+			c = c[:2000]
+		}
+		out = append(out, Turn{Role: role, Content: c})
+	}
+	if len(out) > maxTurns {
+		out = out[len(out)-maxTurns:]
+	}
+	return out
+}
+
+// Chat on the deterministic narrator is the zero-network floor: it cannot answer an
+// arbitrary question, so it says so plainly rather than guessing. The console shows this
+// verbatim, which is the honest behaviour when the model lane is unavailable.
+func (DeterministicNarrator) Chat(_ context.Context, b Brief, _ []Turn) (*Answer, error) {
+	var sb strings.Builder
+	sb.WriteString("The language-model lane is not available, so I can only restate the record rather than answer freely.\n\n")
+	sb.WriteString("Decision: " + b.ActionLabel + " on " + b.AmountText + " over " + b.Rail + ".\n")
+	if len(b.Evidence) > 0 {
+		sb.WriteString("\nWhat fired:\n")
+		for _, e := range b.Evidence {
+			sb.WriteString("  • " + e + "\n")
+		}
+	}
+	if len(b.Cleared) > 0 {
+		sb.WriteString("\nWhat came back clear:\n")
+		for _, e := range b.Cleared {
+			sb.WriteString("  • " + e + "\n")
+		}
+	}
+	sb.WriteString("\n" + b.Determinism)
+	return &Answer{
+		Reply: sb.String(), Provider: "none (built-in)", Model: "deterministic template",
+		OnPremise: true, Grounded: false,
+		Note: "No model was called. This is the decision record itself, restated.",
+	}, nil
+}

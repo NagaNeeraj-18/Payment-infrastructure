@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
-import type { ExplainResponse, Narrative } from "../api/types";
+import type { ChatTurn, ExplainResponse, Narrative } from "../api/types";
 import { formatMinor, formatMs } from "../lib/format";
 
 /** The answer to "how do you actually know this is fraud?".
@@ -12,7 +12,7 @@ import { formatMinor, formatMs } from "../lib/format";
 export function ExplainPanel({ id, onClose }: { id: string; onClose?: () => void }) {
   const [data, setData] = useState<ExplainResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"why" | "proof" | "money">("why");
+  const [tab, setTab] = useState<"why" | "proof" | "money" | "ask">("why");
   const [narr, setNarr] = useState<Narrative | null>(null);
   const [narrLoading, setNarrLoading] = useState(false);
 
@@ -22,7 +22,7 @@ export function ExplainPanel({ id, onClose }: { id: string; onClose?: () => void
     setError(null);
     setNarr(null);
     api
-      .explain(id)
+      .explainWhenReady(id)
       .then((d) => !cancelled && setData(d))
       .catch((e) => !cancelled && setError(e instanceof Error ? e.message : String(e)));
     return () => {
@@ -83,6 +83,7 @@ export function ExplainPanel({ id, onClose }: { id: string; onClose?: () => void
             ["why", "Why this decision"],
             ["money", "The arithmetic"],
             ["proof", "Proof it's reproducible"],
+            ["ask", "Ask about it"],
           ] as const
         ).map(([k, label]) => (
           <button key={k} className={`xp-tab ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
@@ -252,6 +253,8 @@ export function ExplainPanel({ id, onClose }: { id: string; onClose?: () => void
         </div>
       )}
 
+      {tab === "ask" && <AskPanel id={id} />}
+
       {tab === "proof" && (
         <div className="xp-body">
           <div className={`xp-proof ${det.reproduced ? "ok" : "bad"}`}>
@@ -331,3 +334,113 @@ const ACTION_TEXT: Record<string, string> = {
   STEP_UP_INTERSTITIAL: "warn and require confirmation",
   HOLD: "hold it for review",
 };
+
+
+/** The interactive lane: an analyst asks follow-up questions about this decision.
+ *
+ * Every answer is produced from the same whitelisted brief the write-up uses, so the model
+ * cannot introduce a fact the record does not contain — ask it the customer's name and it
+ * will tell you the record does not have one. The decision was made before any of this ran
+ * and does not depend on it, which is why this is a reading tool and not a control. */
+function AskPanel({ id }: { id: string }) {
+  const [turns, setTurns] = useState<ChatTurn[]>([]);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [meta, setMeta] = useState<{ provider: string; model: string; ms: number; degraded: boolean } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const endRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    // Reset when the analyst opens a different decision — carrying a conversation across
+    // records is how you end up answering about the wrong payment.
+    setTurns([]);
+    setDraft("");
+    setMeta(null);
+    setErr(null);
+  }, [id]);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [turns, busy]);
+
+  async function send(text: string) {
+    const q = text.trim();
+    if (!q || busy) return;
+    const next: ChatTurn[] = [...turns, { role: "user", content: q }];
+    setTurns(next);
+    setDraft("");
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await api.chat(id, next);
+      setTurns([...next, { role: "assistant", content: r.answer.reply }]);
+      setMeta({ provider: r.answer.provider, model: r.answer.model, ms: r.answer.latency_ms, degraded: r.degraded });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const SUGGESTIONS = [
+    "Why not just block it?",
+    "What would have made this allowed?",
+    "How confident are you, really?",
+    "What should I do next?",
+  ];
+
+  return (
+    <div className="xp-body xp-ask">
+      <div className="xp-ask-log">
+        {turns.length === 0 && !busy && (
+          <div className="xp-ask-empty">
+            <p>Ask anything about this decision. Answers come from the decision record itself.</p>
+            <div className="xp-ask-sugs">
+              {SUGGESTIONS.map((sg) => (
+                <button key={sg} className="xp-ask-sug" onClick={() => send(sg)}>
+                  {sg}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {turns.map((t, i) => (
+          <div key={i} className={`xp-ask-msg ${t.role}`}>
+            {t.content}
+          </div>
+        ))}
+        {busy && <div className="xp-ask-msg assistant thinking">Reading the record…</div>}
+        {err && <div className="xp-ask-err">{err}</div>}
+        <div ref={endRef} />
+      </div>
+
+      <form
+        className="xp-ask-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          send(draft);
+        }}
+      >
+        <input
+          className="xp-ask-input"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Ask about this decision…"
+          disabled={busy}
+        />
+        <button className="pill pri" type="submit" disabled={busy || !draft.trim()}>
+          Ask
+        </button>
+      </form>
+
+      {meta && (
+        <div className="xp-prov">
+          {meta.degraded
+            ? "Language model unavailable — answered from the decision record itself, with no external dependency."
+            : `${meta.provider} · ${meta.model} · ${meta.ms.toFixed(0)} ms`}
+          {" — grounded in this decision's findings. The decision was made before this ran and does not depend on it."}
+        </div>
+      )}
+    </div>
+  );
+}

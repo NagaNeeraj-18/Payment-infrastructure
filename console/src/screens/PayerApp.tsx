@@ -71,6 +71,7 @@ export function PayerApp() {
   const [fanin, setFanin] = useState<number | null>(null);
   const [why, setWhy] = useState<ExplainResponse | null>(null);
   const [whyOpen, setWhyOpen] = useState(false);
+  const [whyErr, setWhyErr] = useState<string | null>(null);
   const allowedThrough = useRef(false);
 
   const sc = session?.scenario ?? null;
@@ -150,9 +151,9 @@ export function PayerApp() {
       // Pull the full explanation in the background so "why?" is instant when tapped.
       if (expected === "warned") {
         api
-          .explain(res.decision.end_to_end_id)
-          .then(setWhy)
-          .catch(() => setWhy(null));
+          .explainWhenReady(res.decision.end_to_end_id)
+          .then((x) => { setWhy(x); setWhyErr(null); })
+          .catch((e) => setWhyErr(e instanceof Error ? e.message : String(e)));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -339,7 +340,7 @@ export function PayerApp() {
           <button className="pa-why-toggle" onClick={() => setWhyOpen((v) => !v)}>
             {whyOpen ? "Hide the details" : "Why do you think that?"}
           </button>
-          {whyOpen && <WhyPanel why={why} />}
+          {whyOpen && <WhyPanel why={why} err={whyErr} />}
 
           <div className="pa-choices">
             <button className="pa-btn pri" onClick={() => { loadFanin(); go("cancelled"); }}>
@@ -432,7 +433,14 @@ export function PayerApp() {
  * ranked evidence, the checks that came back clean, and the re-execution result. Nothing is
  * re-worded per-decision by this component beyond the phrasing the server already produced,
  * so the phone and the big screen cannot disagree. */
-function WhyPanel({ why }: { why: ExplainResponse | null }) {
+function WhyPanel({ why, err }: { why: ExplainResponse | null; err: string | null }) {
+  if (err)
+    return (
+      <div className="pa-why pa-why-load">
+        The full record has not reached long-term storage yet, so we cannot show the detail here. The decision itself
+        stands and is already written to the audit log.
+      </div>
+    );
   if (!why) return <div className="pa-why pa-why-load">Fetching the full record…</div>;
   const ex = why.explanation;
   const det = why.determinism;

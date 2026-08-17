@@ -764,3 +764,41 @@ input.field:focus { outline: 2px solid var(--indigo); outline-offset: 1px; }
 }
 .pa-why-works p { font-size: 13px; color: var(--ink2); line-height: 1.5; margin: 0; }
 .pa-sms-sub { font-size: 13px; font-weight: 700; margin: 4px 0 6px; color: var(--ink1, #fff); }
+
+/* ── analyst chat (ExplainPanel "Ask about it") ──────────────────────────── */
+.xp-ask { display: flex; flex-direction: column; gap: 10px; }
+.xp-ask-log {
+  display: flex; flex-direction: column; gap: 8px;
+  max-height: 46vh; overflow-y: auto; padding-right: 4px;
+}
+.xp-ask-empty { color: var(--ink4); font-size: 13px; }
+.xp-ask-empty p { margin: 0 0 10px; }
+.xp-ask-sugs { display: flex; flex-wrap: wrap; gap: 6px; }
+.xp-ask-sug {
+  font-size: 12px; padding: 6px 11px; border-radius: 20px; cursor: pointer;
+  background: rgba(255,255,255,.05); color: var(--ink2, #cfd4dc);
+  border: 1px solid rgba(255,255,255,.14);
+}
+.xp-ask-sug:hover { background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.28); }
+.xp-ask-msg {
+  font-size: 13px; line-height: 1.55; padding: 9px 12px; border-radius: 10px;
+  max-width: 92%; white-space: pre-wrap; word-break: break-word;
+}
+.xp-ask-msg.user {
+  align-self: flex-end; background: var(--accent, #4c6ef5); color: #fff;
+  border-bottom-right-radius: 3px;
+}
+.xp-ask-msg.assistant {
+  align-self: flex-start; background: rgba(255,255,255,.06); color: var(--ink2, #cfd4dc);
+  border: 1px solid rgba(255,255,255,.09); border-bottom-left-radius: 3px;
+}
+.xp-ask-msg.thinking { color: var(--ink4); font-style: italic; }
+.xp-ask-err { font-size: 12.5px; color: #ff8a8a; }
+.xp-ask-form { display: flex; gap: 8px; }
+.xp-ask-input {
+  flex: 1; min-width: 0; padding: 9px 12px; font-size: 13px;
+  border-radius: 8px; border: 1px solid rgba(255,255,255,.16);
+  background: rgba(0,0,0,.25); color: var(--ink1, #fff);
+}
+.xp-ask-input:focus { outline: none; border-color: var(--accent, #4c6ef5); }
+.xp-ask-input::placeholder { color: var(--ink4); }

@@ -2,6 +2,8 @@
 // function either resolves with real backend JSON or throws, and callers render the error.
 import type {
   AlertsResponse,
+  ChatResponse,
+  ChatTurn,
   ExplainResponse,
   LivePolicyResponse,
   CoverageResponse,
@@ -42,10 +44,20 @@ export const API_BASE = (() => {
   return `${proto}//${window.location.hostname}:8080`;
 })();
 
+/** Carries the HTTP status so callers can tell "not there yet" from "not there". */
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
 async function getJSON<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`);
   if (!res.ok) {
-    throw new Error(`GET ${path} -> ${res.status} ${res.statusText}`);
+    throw new ApiError(`GET ${path} -> ${res.status} ${res.statusText}`, res.status);
   }
   return res.json() as Promise<T>;
 }
@@ -57,7 +69,7 @@ async function postJSON<T>(path: string, body?: unknown): Promise<T> {
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {
-    throw new Error(`POST ${path} -> ${res.status} ${res.statusText}`);
+    throw new ApiError(`POST ${path} -> ${res.status} ${res.statusText}`, res.status);
   }
   return res.json() as Promise<T>;
 }
@@ -90,6 +102,27 @@ export const api = {
   resolveAlert: (id: number) => postJSON<{ status: string }>(`/v1/alerts/${id}/resolve`, { resolved_by: "operator" }),
   // Explanation & proof
   explain: (id: string) => getJSON<ExplainResponse>(`/v1/decisions/${encodeURIComponent(id)}/explain`),
+  // Decisions reach Postgres on an async shipper, so /explain 404s for a moment after the
+  // decision itself has returned. A judge clicking the newest row in the feed, or tapping
+  // "why?" on the phone, hits exactly that window — a single attempt shows them an error for
+  // a decision that is about to exist. Retry ONLY on 404, and only for as long as the drain
+  // could plausibly take; every other status is a real failure and surfaces immediately.
+  explainWhenReady: async (id: string, timeoutMs = 8000): Promise<ExplainResponse> => {
+    const deadline = Date.now() + timeoutMs;
+    let delay = 120;
+    for (;;) {
+      try {
+        return await getJSON<ExplainResponse>(`/v1/decisions/${encodeURIComponent(id)}/explain`);
+      } catch (e) {
+        const notYet = e instanceof ApiError && e.status === 404;
+        if (!notYet || Date.now() + delay >= deadline) throw e;
+        await new Promise((r) => setTimeout(r, delay));
+        delay = Math.min(delay * 2, 1000);
+      }
+    }
+  },
+  chat: (id: string, messages: ChatTurn[]) =>
+    postJSON<ChatResponse>(`/v1/decisions/${encodeURIComponent(id)}/chat`, { messages }),
   narrate: (id: string) => postJSON<NarrateResponse>(`/v1/decisions/${encodeURIComponent(id)}/narrate`),
   // Live traffic & attack campaigns
   simStatus: () => getJSON<SimStatus>("/v1/sim/status"),

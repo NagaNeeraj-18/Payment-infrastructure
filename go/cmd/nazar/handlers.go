@@ -54,6 +54,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	// Explanation, proof, and the live-demo surfaces. None of these sit on the scoring path.
 	mux.HandleFunc("GET /v1/decisions/{id}/explain", s.handleExplain)
 	mux.HandleFunc("POST /v1/decisions/{id}/narrate", s.handleNarrate)
+	mux.HandleFunc("POST /v1/decisions/{id}/chat", s.handleDecisionChat)
 	mux.HandleFunc("GET /v1/sim/status", s.handleSimStatus)
 	mux.HandleFunc("POST /v1/sim/traffic", s.handleSimTraffic)
 	mux.HandleFunc("POST /v1/sim/attack/stop", s.handleSimAttackStop)

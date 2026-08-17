@@ -42,6 +42,17 @@ const JUDGE_BEATS: { key: string; label: string }[] = [
   { key: "reveal", label: "Proof" },
 ];
 
+// The phone reports more acts than the track shows. Mapping every act onto a beat keeps the
+// track from blanking out mid-story — "chai_done" and "cancelled" are real beats to a judge
+// watching, even though they are not their own dot.
+const ACT_TO_BEAT: Record<string, number> = {
+  intro: 0, home: 0, chai_done: 0,
+  call: 1,
+  scam_pay: 2,
+  warned: 3, cancelled: 3, override: 3,
+  reveal: 4,
+};
+
 /** Counts up to a target so a number that jumps by 40 reads as motion rather than a redraw. */
 function useTicker(target: number, ms = 450) {
   const [v, setV] = useState(target);
@@ -187,9 +198,8 @@ export function CommandCentre() {
             )}
           </div>
           <div className="cc-judge-track">
-            {JUDGE_BEATS.map((b) => {
-              const at = JUDGE_BEATS.findIndex((x) => x.key === judge.act);
-              const i = JUDGE_BEATS.findIndex((x) => x.key === b.key);
+            {JUDGE_BEATS.map((b, i) => {
+              const at = ACT_TO_BEAT[judge.act] ?? 0;
               return (
                 <span key={b.key} className={`cc-judge-beat ${i === at ? "on" : i < at ? "done" : ""}`}>
                   {b.label}

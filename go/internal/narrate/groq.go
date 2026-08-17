@@ -285,3 +285,76 @@ func truncate(s string, n int) string {
 	}
 	return s[:n] + "…"
 }
+
+const chatSystemPrompt = `You are the analyst assistant inside Nazar, a real-time payments fraud detection system used by bank fraud analysts in India.
+
+You are given a STRUCTURED BRIEF describing ONE payment decision the system has ALREADY made. An analyst will ask you questions about it. Answer them.
+
+Hard rules:
+- The decision is final and was made before you ran. Explain and interpret it; never claim to have made it, never propose overriding it.
+- Ground every factual claim in the brief. If the analyst asks something the brief does not contain — the customer's name, their balance, what happened yesterday, whether they are guilty — say plainly that the record does not contain it. Never invent an amount, a name, a probability, a rule, a time or a location.
+- Never describe the customer as a fraudster. The system detects risk in transactions, not guilt in people.
+- Amounts are Indian rupees, already formatted. Reproduce them exactly as given.
+- If the analyst asks something outside this decision entirely (general fraud typology, how the system works, what a term means), you may answer from general knowledge — but say clearly that you are doing so rather than reading it off this record.
+- Be concise. Two or three short paragraphs at most. Plain prose, no markdown headings, no bullet characters.`
+
+// Chat answers analyst follow-ups about one decision. Identical transport, credentials and
+// failover as Narrate — the only difference is that the conversation is replayed after the
+// brief, so every answer stays anchored to the record rather than drifting.
+func (n *OpenAINarrator) Chat(ctx context.Context, b Brief, history []Turn) (*Answer, error) {
+	if err := assertNoFreeText(b); err != nil {
+		return nil, err
+	}
+	turns := SanitiseTurns(history)
+	if len(turns) == 0 {
+		return nil, fmt.Errorf("narrate: no question asked")
+	}
+	briefJSON, err := json.MarshalIndent(b, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("narrate: encoding brief: %w", err)
+	}
+
+	msgs := []chatMessage{
+		{Role: "system", Content: chatSystemPrompt},
+		{Role: "user", Content: "STRUCTURED BRIEF for the decision under discussion:\n" + string(briefJSON)},
+		{Role: "assistant", Content: "I have the decision record. Ask me anything about it."},
+	}
+	for _, t := range turns {
+		msgs = append(msgs, chatMessage{Role: t.Role, Content: t.Content})
+	}
+
+	body, err := json.Marshal(chatRequest{
+		Model:       n.Model,
+		Messages:    msgs,
+		Temperature: 0.3, // a shade warmer than the write-up; still not creative writing
+		MaxTokens:   800,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("narrate: encoding request: %w", err)
+	}
+
+	start := time.Now()
+	raw, err := n.postWithFailover(ctx, body)
+	if err != nil {
+		return nil, err
+	}
+	var cr chatResponse
+	if err := json.Unmarshal(raw, &cr); err != nil {
+		return nil, fmt.Errorf("narrate: decoding response: %w", err)
+	}
+	if cr.Error != nil {
+		return nil, fmt.Errorf("narrate: model error: %s", cr.Error.Message)
+	}
+	if len(cr.Choices) == 0 {
+		return nil, fmt.Errorf("narrate: model returned no choices")
+	}
+	return &Answer{
+		Reply:     strings.TrimSpace(cr.Choices[0].Message.Content),
+		Provider:  n.Provider,
+		Model:     n.Model,
+		OnPremise: n.OnPremise,
+		LatencyMs: float64(time.Since(start).Microseconds()) / 1000.0,
+		Grounded:  true,
+		Note:      "Answered by a language model from Nazar's structured findings. The decision was made before this ran and does not depend on it.",
+	}, nil
+}

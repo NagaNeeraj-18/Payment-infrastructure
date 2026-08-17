@@ -567,3 +567,27 @@ export interface CoverageResponse {
   read_the_value_rate: string;
   why_it_matters: string;
 }
+
+// ── interactive analyst chat ────────────────────────────────────────────────
+// POST /v1/decisions/{id}/chat. Grounded in the same whitelisted brief the write-up uses,
+// so an answer can never contain a fact the decision record does not have.
+
+export interface ChatTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChatAnswer {
+  reply: string;
+  provider: string;
+  model: string;
+  on_premise: boolean;
+  latency_ms: number;
+  grounded: boolean;
+  note: string;
+}
+
+export interface ChatResponse {
+  answer: ChatAnswer;
+  degraded: boolean;
+}
