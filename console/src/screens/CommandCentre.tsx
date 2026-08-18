@@ -91,6 +91,8 @@ export function CommandCentre() {
   const [judge, setJudge] = useState<JudgeSessionResponse | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [resetDone, setResetDone] = useState<string | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,6 +149,28 @@ export function CommandCentre() {
     }
   }
 
+  /** Back to a plain state between scenarios. Two-step on purpose: it deletes real history,
+   *  and a stray click during a demo would be worse than the bloat it fixes. */
+  async function doReset() {
+    setBusy("reset");
+    setConfirmReset(false);
+    try {
+      const r = await api.adminReset();
+      setSelected(null);
+      setResetDone(
+        `Cleared ${r.decisions_deleted.toLocaleString()} decisions, ${r.redis_keys_deleted.toLocaleString()} profile keys, the graph, the novelty reservoir and the latency window. Audit chain ${r.audit_chain}.`,
+      );
+      setSim(await api.simStatus());
+      setLatency(await api.latency());
+      setJudge(null);
+      window.setTimeout(() => setResetDone(null), 9000);
+    } catch (e) {
+      setResetDone(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function toggleTraffic() {
     setBusy("traffic");
     try {
@@ -179,7 +203,25 @@ export function CommandCentre() {
         <button className={`pill ${sim?.traffic_running ? "dan" : "pri"}`} onClick={toggleTraffic} disabled={busy === "traffic"}>
           {sim?.traffic_running ? "Stop background traffic" : "Start background traffic"}
         </button>
+        {confirmReset ? (
+          <>
+            <span className="cc-reset-q">Clear all history and counters?</span>
+            <button className="pill dan" onClick={doReset} disabled={busy === "reset"}>
+              {busy === "reset" ? "Resetting…" : "Yes, reset"}
+            </button>
+            <button className="pill gh" onClick={() => setConfirmReset(false)}>
+              Cancel
+            </button>
+          </>
+        ) : (
+          <button className="pill gh" onClick={() => setConfirmReset(true)} disabled={busy !== null}
+            title="Return the instance to a plain state so the next scenario starts clean">
+            Reset for next scenario
+          </button>
+        )}
       </div>
+
+      {resetDone && <div className="cc-reset-done">{resetDone}</div>}
 
       {judge && judgePayer && (
         <div className="cc-judge">

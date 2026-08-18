@@ -265,3 +265,18 @@ func copyMap(m map[string]float64) map[string]float64 {
 	}
 	return out
 }
+
+// Reset clears the reservoir and the reference distribution, returning the detector to
+// cold start. It will say COLD_START until it has seen enough traffic again, which is the
+// honest state for a detector that has just been told to forget what normal looks like.
+func (e *Engine) Reset() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.pts = nil
+	e.next = 0
+	e.dims = nil
+	e.scale = nil
+	e.alphas = nil
+	e.ref = nil
+	e.sinceRefresh = 0
+}

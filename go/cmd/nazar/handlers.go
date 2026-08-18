@@ -65,6 +65,7 @@ func (s *Server) Routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /v1/policy/tune", s.handlePolicyTune)
 	mux.HandleFunc("POST /v1/policy/reset", s.handlePolicyReset)
 	mux.HandleFunc("GET /v1/model/metrics", s.handleModelMetrics)
+	mux.HandleFunc("POST /v1/admin/reset", s.handleAdminReset)
 	mux.HandleFunc("GET /v1/analytics", s.handleAnalytics)
 	mux.HandleFunc("GET /v1/model/coverage", s.handleModelCoverage)
 }

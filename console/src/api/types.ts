@@ -636,3 +636,20 @@ export interface GraphTopResponse {
   accounts: GraphTopAccount[];
   note: string;
 }
+
+// POST /v1/admin/reset — demo affordance; see go/cmd/nazar/handlers_reset.go.
+export interface ResetReport {
+  decisions_deleted: number;
+  transactions_deleted: number;
+  alerts_deleted: number;
+  redis_keys_deleted: number;
+  graph_cleared: boolean;
+  novelty_cleared: boolean;
+  latency_cleared: boolean;
+  simulator_stopped: boolean;
+  judge_session_cleared: boolean;
+  policy_version: string;
+  audit_chain: string;
+  note: string;
+  took_ms: number;
+}

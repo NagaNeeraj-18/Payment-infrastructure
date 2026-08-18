@@ -72,7 +72,13 @@ export function useDecisionStream() {
         setConnState("error");
       };
 
-      es.addEventListener("decision", (evt) => {
+      // The demo reset wipes persisted history; a feed still showing rows for decisions that
+    // no longer exist is the same credibility problem as showing invented ones.
+    es.addEventListener("reset", () => {
+      setRows([]);
+    });
+
+    es.addEventListener("decision", (evt) => {
         setConnState("open");
         try {
           const data = JSON.parse((evt as MessageEvent).data) as StreamDecisionEvent;

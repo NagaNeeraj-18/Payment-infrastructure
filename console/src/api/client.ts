@@ -27,6 +27,7 @@ import type {
   LatencyResponse,
   PolicyBundle,
   RecentDecisionsResponse,
+  ResetReport,
   ResilienceResponse,
 } from "./types";
 
@@ -138,6 +139,7 @@ export const api = {
   tunePolicy: (req: PolicyTuneRequest) => postJSON<PolicyTuneResponse>("/v1/policy/tune", req),
   resetPolicy: () => postJSON<{ status: string; policy_version: string }>("/v1/policy/reset"),
   // Model evidence
+  adminReset: () => postJSON<ResetReport>("/v1/admin/reset"),
   analytics: () => getJSON<AnalyticsResponse>("/v1/analytics"),
   modelMetrics: () => getJSON<ModelMetricsResponse>("/v1/model/metrics"),
   modelCoverage: () => getJSON<CoverageResponse>("/v1/model/coverage"),

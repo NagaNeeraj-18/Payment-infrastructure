@@ -136,3 +136,22 @@ func hexOrEmpty(b []byte) string {
 	}
 	return fmt.Sprintf("%x", b)
 }
+
+// Truncate empties the log and starts a fresh audit chain from sequence zero.
+//
+// This is a demo affordance and nothing else. A real deployment never truncates its audit
+// log — the whole value of a hash chain is that history cannot be discarded quietly — which
+// is why this lives behind an explicit admin action and why the console tells the room the
+// chain has been restarted rather than presenting a fresh chain as a long-standing one.
+func (w *WAL) Truncate() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if err := w.file.Truncate(0); err != nil {
+		return fmt.Errorf("wal: truncating: %w", err)
+	}
+	if _, err := w.file.Seek(0, 0); err != nil {
+		return fmt.Errorf("wal: rewinding: %w", err)
+	}
+	w.chain = audit.NewChain(0)
+	return nil
+}

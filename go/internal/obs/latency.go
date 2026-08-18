@@ -80,3 +80,14 @@ func pct(sorted []float64, p float64) float64 {
 	idx := int(p * float64(len(sorted)-1))
 	return sorted[idx]
 }
+
+// Reset discards every recorded sample. Used by the demo reset so the p50/p99 shown belong
+// to the run being demonstrated rather than to whatever load happened before it — a latency
+// figure averaged over a previous scenario is a wrong number, not a stale one.
+func (t *LatencyTracker) Reset() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.samples = make([]Sample, t.cap)
+	t.next = 0
+	t.filled = false
+}
