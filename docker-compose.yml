@@ -2,6 +2,7 @@
 services:
   redis:
     image: redis:7-alpine
+    container_name: nazar-redis
     command: redis-server --appendonly no
     restart: unless-stopped
     healthcheck:
@@ -36,8 +37,11 @@ services:
       POSTGRES_DSN: postgres://nazar:${POSTGRES_PASSWORD:-nazar}@postgres:5432/nazar?sslmode=disable
       NAZAR_LLM_API_KEYS: ${NAZAR_LLM_API_KEYS:-}
       NAZAR_LLM_MODEL: ${NAZAR_LLM_MODEL:-openai/gpt-oss-120b}
+      NAZAR_CONTAINER_ENGINE: docker
+      NAZAR_REDIS_CONTAINER: nazar-redis
     volumes:
       - waldata:/data
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       redis:      {condition: service_healthy}
       postgres:   {condition: service_healthy}

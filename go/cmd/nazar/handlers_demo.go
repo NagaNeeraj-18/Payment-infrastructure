@@ -165,7 +165,7 @@ func (s *Server) demoRedisFailure(ctx context.Context, run int64) (demoResult, e
 	}
 	var steps []demoStep
 
-	if out, err := exec.Command("podman", "stop", container).CombinedOutput(); err != nil {
+	if out, err := exec.Command(s.containerEngine, "stop", container).CombinedOutput(); err != nil {
 		return demoResult{}, fmt.Errorf("stopping redis: %w (%s)", err, out)
 	}
 	steps = append(steps, demoStep{Label: "Redis stopped", Note: "container: " + container})
@@ -175,7 +175,7 @@ func (s *Server) demoRedisFailure(ctx context.Context, run int64) (demoResult, e
 	ev := baseEvent(run, "degraded", payer, payee, 90000)
 	d, _, err := s.DecideAndPersist(ctx, ev)
 
-	if out, restoreErr := exec.Command("podman", "start", container).CombinedOutput(); restoreErr != nil {
+	if out, restoreErr := exec.Command(s.containerEngine, "start", container).CombinedOutput(); restoreErr != nil {
 		steps = append(steps, demoStep{Label: "Redis restore FAILED", Note: fmt.Sprintf("%v: %s", restoreErr, out)})
 	} else {
 		steps = append(steps, demoStep{Label: "Redis restored"})

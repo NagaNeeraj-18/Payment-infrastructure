@@ -46,5 +46,6 @@ type Server struct {
 	judgeMu      sync.Mutex
 	judgeSession *judgeSessionResponse // most recent QR session, so the console can follow it
 
-	redisContainer string
+	redisContainer  string
+	containerEngine string // "podman" or "docker", read from NAZAR_CONTAINER_ENGINE
 }

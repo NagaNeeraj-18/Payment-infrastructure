@@ -302,7 +302,7 @@ func (s *Server) handleChaosRedis(w http.ResponseWriter, r *http.Request) {
 	}
 	// Real infrastructure chaos, not a UI facade: this actually stops/starts the Redis
 	// container, so every downstream Degraded=true branch in profile.Load fires for real.
-	out, err := exec.Command("podman", cmdName, container).CombinedOutput()
+	out, err := exec.Command(s.containerEngine, cmdName, container).CombinedOutput()
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error(), "output": string(out)})
 		return

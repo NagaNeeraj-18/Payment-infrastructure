@@ -7,9 +7,13 @@ RUN go mod download
 COPY go/ ./
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/nazar ./cmd/nazar
 
+# Grab the docker CLI so the chaos endpoint can stop/start sibling containers.
+FROM docker:27-cli AS docker-cli
+
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
 COPY --from=build /out/nazar /app/nazar
+COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
 # Runtime-resolved assets, all read-only at runtime.
 COPY features            /app/features
 COPY rules               /app/rules

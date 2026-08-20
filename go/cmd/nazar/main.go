@@ -137,6 +137,7 @@ func main() {
 		blocklist: blocklist, health: depHealth, graph: graphEngine, novelty: noveltyEngine,
 		consortium: consortiumRegistry,
 		policy: policy, redisContainer: env("NAZAR_REDIS_CONTAINER", "nazar-redis"),
+		containerEngine: env("NAZAR_CONTAINER_ENGINE", "podman"),
 		sim: newSimulator(), narrator: narrate.FromEnv(),
 		policyRef: policyRef, basePolicy: policy,
 	}
