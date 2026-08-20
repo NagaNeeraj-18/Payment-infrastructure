@@ -42,6 +42,7 @@ services:
     volumes:
       - waldata:/data
       - /var/run/docker.sock:/var/run/docker.sock
+    user: root  # required to access the Docker socket for chaos (stop/start Redis)
     depends_on:
       redis:      {condition: service_healthy}
       postgres:   {condition: service_healthy}

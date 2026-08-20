@@ -58,7 +58,7 @@ export function Resilience() {
           <h1>Resilience</h1>
           <p>
             Dependency status via <span className="mn">GET /v1/resilience</span>, polled every 3s. Chaos controls
-            actually stop/start the Redis container via podman.
+            actually stop/start the Redis container via the configured container engine.
           </p>
         </div>
         <div className="sp" />
